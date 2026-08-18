@@ -80,12 +80,21 @@ export function tierModalities(
   return [...set].sort().join("+");
 }
 
+export function modelSizeB(id: string): number | null {
+  const match = id.match(/\b(\d+(?:\.\d+)?)\s*b\b/i);
+  if (!match) return null;
+  const size = Number.parseFloat(match[1]);
+  if (!Number.isFinite(size) || size <= 0) return null;
+  return size;
+}
+
 export interface ModelRow {
   provider: string;
   modelId: string;
   modelName: string;
   tier: string;
   modality: string;
+  sizeB: number | null;
   input: number | null;
   output: number | null;
   cacheRead: number | null;
@@ -108,6 +117,7 @@ export function buildRows(data: PricingData): ModelRow[] {
           modelName: model.name,
           tier: tier.name,
           modality: tierModalities(model, tier),
+          sizeB: modelSizeB(model.id),
           input: input ? usdPerMillion(input) : null,
           output: output ? usdPerMillion(output) : null,
           cacheRead: cacheRead ? usdPerMillion(cacheRead) : null,

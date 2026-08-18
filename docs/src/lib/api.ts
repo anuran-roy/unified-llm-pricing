@@ -11,6 +11,7 @@ export interface LeaderboardFilters {
   providers: string[]
   tiers: string[]
   modalities: string[]
+  sizeRange: { min: number; max: number } | null
 }
 
 export interface LeaderboardResponse {
@@ -28,6 +29,7 @@ export interface LeaderboardRow {
   modelName: string
   tier: string
   modality: string
+  sizeB: number | null
   input: number | null
   output: number | null
   cacheRead: number | null

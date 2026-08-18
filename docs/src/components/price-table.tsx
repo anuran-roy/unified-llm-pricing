@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { fmtUsd } from "@/lib/pricing"
 import type { LeaderboardResponse } from "@/lib/api"
 
 const PAGE_SIZE = 100
+const SLIDER_MIN_B = 0
+const SLIDER_MAX_B = 1000
 
 const SORT_LABELS: Record<string, string> = {
   input: "Input $/1M",
@@ -19,6 +22,12 @@ const SORT_LABELS: Record<string, string> = {
   provider: "Provider",
   tier: "Tier",
   modality: "Modality",
+  sizeB: "Size",
+}
+
+function fmtSizeB(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}T`
+  return n >= 1 ? `${n.toFixed(1).replace(/\.0$/, "")}B` : `${n.toFixed(2)}B`
 }
 
 export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
@@ -37,6 +46,10 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
   const tiers = useMemo(() => initial.filters.tiers, [initial])
   const modalities = useMemo(() => initial.filters.modalities, [initial])
   const providers = useMemo(() => initial.filters.providers, [initial])
+  const sizeBounds = useMemo(() => initial.filters.sizeRange, [initial])
+  const [sizeRange, setSizeRange] = useState<[number, number]>([SLIDER_MIN_B, SLIDER_MAX_B])
+
+  const sizeActive = sizeRange[0] > SLIDER_MIN_B || sizeRange[1] < SLIDER_MAX_B
 
   const params = useMemo(() => {
     const p: Record<string, string> = { sortBy, sortOrder }
@@ -44,8 +57,12 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
     if (provider !== "all") p.provider = provider
     if (tier !== "all") p.tier = tier
     if (modality !== "all") p.modality = modality
+    if (sizeActive && sizeRange) {
+      if (sizeRange[0] > SLIDER_MIN_B) p.minSize = String(sizeRange[0])
+      if (sizeRange[1] < SLIDER_MAX_B) p.maxSize = String(sizeRange[1])
+    }
     return p
-  }, [models, provider, tier, modality, sortBy, sortOrder])
+  }, [models, provider, tier, modality, sortBy, sortOrder, sizeActive, sizeRange])
 
   const load = useCallback(
     async (offset: number, append: boolean) => {
@@ -85,6 +102,7 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
     }
   }
 
+  const topOpen = sizeRange[1] >= SLIDER_MAX_B
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -134,6 +152,40 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
         </Select>
       </div>
 
+      {sizeBounds && sizeRange && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3">
+          <span className="w-24 text-sm font-medium">Size</span>
+          <Slider
+            className="max-w-72 flex-1"
+            min={SLIDER_MIN_B}
+            max={SLIDER_MAX_B}
+            step={1}
+            value={sizeRange}
+            onValueChange={(v) => {
+              if (v.length === 2) setSizeRange([v[0], v[1]])
+            }}
+          />
+          <span className="min-w-28 text-sm tabular-nums text-muted-foreground">
+            {fmtSizeB(sizeRange[0])} – {topOpen ? ">1T" : fmtSizeB(sizeRange[1])}
+          </span>
+          {sizeActive && (
+            <button
+              className="text-sm text-muted-foreground underline underline-offset-2"
+              onClick={() => setSizeRange([SLIDER_MIN_B, SLIDER_MAX_B])}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">
+        {sizeActive
+          ? "Models without a published size (e.g. GPT-4.1) are always included; the slider filters only models whose size is known. Pull the top thumb to the end for the \u201C>1T\u201D category."
+          : "Size is inferred from the model ID, so it is only available for open-weight models. Largest known size: " +
+            (sizeBounds ? `${fmtSizeB(sizeBounds.max)} (${fmtSizeB(sizeBounds.min)} smallest)` : "—") +
+            "."}
+      </p>
+
       <p className="text-sm text-muted-foreground">
         {loading && rows.length === 0 ? "Loading…" : `Showing ${rows.length.toLocaleString()} of ${total.toLocaleString()} prices`}
       </p>
@@ -142,7 +194,7 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
         <Table>
           <TableHeader>
             <TableRow>
-              {["modelName", "provider", "tier", "modality", "input", "output", "cacheRead", "cacheWrite"].map((key) => (
+              {["modelName", "provider", "tier", "modality", "sizeB", "input", "output", "cacheRead", "cacheWrite"].map((key) => (
                 <TableHead key={key} className="whitespace-nowrap">
                   <button onClick={() => toggleSort(key)} className="font-medium">
                     {SORT_LABELS[key]}
@@ -156,7 +208,7 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
             {loading && rows.length === 0
               ? Array.from({ length: 6 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
+                    {Array.from({ length: 9 }).map((_, j) => (
                       <TableCell key={j}>
                         <div className="h-4 animate-pulse rounded bg-muted" />
                       </TableCell>
@@ -169,6 +221,9 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
                     <TableCell>{row.provider}</TableCell>
                     <TableCell>{row.tier}</TableCell>
                     <TableCell>{row.modality}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {row.sizeB === null ? "—" : fmtSizeB(row.sizeB)}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{fmtUsd(row.input)}</TableCell>
                     <TableCell className="text-right tabular-nums">{fmtUsd(row.output)}</TableCell>
                     <TableCell className="text-right tabular-nums">{fmtUsd(row.cacheRead)}</TableCell>

@@ -2,7 +2,7 @@ import type { PricingData } from "./types"
 import { buildRows, buildTierComparison, computeStats, type ModelRow, type TierComparisonRow } from "./pricing"
 import { buildAvailability } from "./normalize"
 
-export const SORT_KEYS = ["input", "output", "cacheRead", "cacheWrite", "modelName", "provider", "tier", "modality"] as const
+export const SORT_KEYS = ["input", "output", "cacheRead", "cacheWrite", "modelName", "provider", "tier", "modality", "sizeB"] as const
 export type SortKey = (typeof SORT_KEYS)[number]
 
 export interface LeaderboardQuery {
@@ -10,6 +10,8 @@ export interface LeaderboardQuery {
   provider?: string
   tier?: string
   modality?: string
+  minSize?: number
+  maxSize?: number
   sortBy?: SortKey
   sortOrder?: "asc" | "desc"
   limit?: number
@@ -22,6 +24,12 @@ function parseLimit(value: string | null, fallback: number, max: number): number
   return Math.min(n, max)
 }
 
+function parseFloatParam(value: string | null): number | undefined {
+  if (value === null || value === "") return undefined
+  const n = Number.parseFloat(value)
+  return Number.isFinite(n) && n >= 0 ? n : undefined
+}
+
 export function parseLeaderboardQuery(sp: URLSearchParams): LeaderboardQuery {
   const sortBy = sp.get("sortBy") as SortKey | null
   return {
@@ -29,6 +37,8 @@ export function parseLeaderboardQuery(sp: URLSearchParams): LeaderboardQuery {
     provider: sp.get("provider") ?? undefined,
     tier: sp.get("tier") ?? undefined,
     modality: sp.get("modality") ?? undefined,
+    minSize: parseFloatParam(sp.get("minSize")),
+    maxSize: parseFloatParam(sp.get("maxSize")),
     sortBy: sortBy && SORT_KEYS.includes(sortBy) ? sortBy : "input",
     sortOrder: sp.get("sortOrder") === "desc" ? "desc" : "asc",
     limit: parseLimit(sp.get("limit"), 100, 1000),
@@ -46,6 +56,14 @@ export function queryLeaderboard(
   if (q.provider) rows = rows.filter((r) => r.provider === q.provider)
   if (q.tier) rows = rows.filter((r) => r.tier === q.tier)
   if (q.modality) rows = rows.filter((r) => r.modality.split("+").includes(q.modality!))
+  if (q.minSize !== undefined || q.maxSize !== undefined) {
+    rows = rows.filter((r) => {
+      if (r.sizeB === null) return true
+      if (q.minSize !== undefined && r.sizeB < q.minSize) return false
+      if (q.maxSize !== undefined && r.sizeB > q.maxSize) return false
+      return true
+    })
+  }
   if (q.models) {
     const needle = q.models.toLowerCase()
     rows = rows.filter(
@@ -62,10 +80,12 @@ export function queryLeaderboard(
     return String(av).localeCompare(String(bv)) * dir
   })
 
+  const sizes = allRows.map((r) => r.sizeB).filter((s): s is number => s !== null)
   const filters: import("./api").LeaderboardFilters = {
     providers: [...new Set(allRows.map((r) => r.provider))].sort(),
     tiers: [...new Set(allRows.map((r) => r.tier))].sort(),
     modalities: [...new Set(allRows.flatMap((r) => r.modality.split("+")))].sort(),
+    sizeRange: sizes.length > 0 ? { min: Math.min(...sizes), max: Math.max(...sizes) } : null,
   }
 
   const total = rows.length
@@ -181,6 +201,7 @@ export function queryTiers(
     providers: [...new Set(allRows.map((r) => r.provider))].sort(),
     tiers: [...new Set(allRows.map((r) => r.tier))].sort(),
     modalities: [],
+    sizeRange: null,
   }
 
   const total = rows.length
