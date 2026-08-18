@@ -1,6 +1,6 @@
 # Unified LLM Pricing
 
-Daily TypeScript scraper that normalizes pricing from Google Gemini, OpenAI, Anthropic Claude, Groq, Doubleword, and OpenRouter into `data/pricing.json`.
+Daily TypeScript scraper that normalizes pricing from Google Gemini, OpenAI, Anthropic Claude, Groq, Doubleword, OpenRouter, LiteLLM, Baseten, and Wafer into `data/pricing.json`.
 
 ## Providers
 
@@ -10,10 +10,13 @@ Daily TypeScript scraper that normalizes pricing from Google Gemini, OpenAI, Ant
 - Groq
 - Doubleword
 - OpenRouter
+- LiteLLM model catalog
+- Baseten
+- Wafer
 
 ## How it works
 
-- Fetches each provider's pricing source (markdown docs for Gemini/OpenAI/Claude/Groq/Doubleword, the live API for OpenRouter).
+- Fetches each provider's pricing source (markdown docs for Gemini/OpenAI/Claude/Groq/Doubleword; JSON APIs for OpenRouter, LiteLLM, and Wafer; the embedded Next.js flight payload for Baseten).
 - Parses the documents with remark (GFM) and normalizes prices into a unified shape: `{ provider, source, models: [{ id, name, provider, tiers: [{ input, output, cacheRead, cacheWrite, other }] }] }`.
 - Writes the result to `data/pricing.json`.
 
@@ -69,7 +72,7 @@ curl https://raw.githubusercontent.com/anuran-roy/unified-llm-pricing/refs/heads
 
 - `generatedAt` — ISO timestamp of when the snapshot was generated.
 - `providers[]` — one entry per provider.
-  - `provider` — provider slug (`google`, `openai`, `anthropic`, `groq`, `doubleword`, `openrouter`).
+  - `provider` — provider slug (`google`, `openai`, `anthropic`, `groq`, `doubleword`, `openrouter`, `litellm`, `baseten`, `wafer`).
   - `source.url` / `source.fetchedAt` — where the pricing was scraped from and when.
   - `models[]` — one entry per model.
     - `id` — model ID (e.g. `gemini-3.7-flash`, `gpt-5.6-sol`).
