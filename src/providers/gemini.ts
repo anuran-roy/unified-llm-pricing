@@ -17,6 +17,8 @@ import type {
   ProviderPricing,
 } from "../types.js";
 
+import { inferModelModality } from "../utils/modality.js";
+
 const GEMINI_PRICING_URL =
   "https://ai.google.dev/gemini-api/docs/pricing.md.txt";
 
@@ -379,6 +381,41 @@ function parseTable(
 }
 
 /**
+ * Google's pricing tables do not label token prices on
+ * embedding, image, audio, and video models, so tag
+ * unlabelled token prices with the inferred modality.
+ */
+function tagModelModality(
+  model: ModelPricing,
+): void {
+  const inferred =
+    inferModelModality(model);
+
+  if (!inferred) {
+    return;
+  }
+
+  for (const tier of model.tiers) {
+    for (const arr of [
+      tier.input,
+      tier.output,
+      tier.cacheRead,
+      tier.cacheWrite,
+      tier.other,
+    ]) {
+      for (const price of arr ?? []) {
+        if (
+          !price.modality &&
+          price.pricingType === "token"
+        ) {
+          price.modality = inferred;
+        }
+      }
+    }
+  }
+}
+
+/**
  * Parse the entire Gemini pricing document.
  */
 function parseGeminiMarkdown(
@@ -482,6 +519,10 @@ function parseGeminiMarkdown(
     throw new Error(
       "Gemini parser extracted zero models. Google may have changed the pricing page structure.",
     );
+  }
+
+  for (const model of models) {
+    tagModelModality(model);
   }
 
   return models;

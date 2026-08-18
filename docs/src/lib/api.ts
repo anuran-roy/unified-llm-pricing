@@ -89,6 +89,7 @@ export interface ProviderStat {
   cheapestInput: number | null
   cheapestModel: string | null
   avgStandardInput: number | null
+  avgByModality: Record<string, number | null>
 }
 
 export interface OverviewStats {
@@ -100,4 +101,5 @@ export interface OverviewStats {
   perProvider: ProviderStat[]
   modalityCounts: Record<string, number>
   tierCounts: Record<string, number>
+  modalities: string[]
 }

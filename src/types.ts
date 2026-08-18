@@ -1,6 +1,13 @@
 export type Provider = string;
 export type PricingType = "token" | "image" | "audio" | "video" | "request" | "minute" | "hour" | "character" | string;
-export type Modality = "text" | "image" | "audio" | "video" | "embedding" | string;
+export type Modality =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "embedding"
+  | "rerank"
+  | string;
 export interface Price { amount: number; currency: string; units?: number; pricingType: PricingType; modality?: Modality; raw?: string; }
 export interface PricingTier { name: string; input?: Price[]; output?: Price[]; cacheRead?: Price[]; cacheWrite?: Price[]; other?: Price[]; metadata?: Record<string, unknown>; }
 export interface ModelPricing {

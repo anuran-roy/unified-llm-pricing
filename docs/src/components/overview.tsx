@@ -1,7 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { fmtUsd } from "@/lib/pricing"
@@ -9,7 +11,7 @@ import type { StatsResponse } from "@/lib/api"
 
 export function Overview({ stats }: { stats: StatsResponse }) {
   const s = stats.stats
-  const maxAvg = Math.max(...s.perProvider.map((p) => p.avgStandardInput ?? 0), 1)
+  const [modality, setModality] = useState("all")
   const sortedProviders = [...s.perProvider].sort(
     (a, b) => (a.avgStandardInput ?? Infinity) - (b.avgStandardInput ?? Infinity)
   )
@@ -24,6 +26,14 @@ export function Overview({ stats }: { stats: StatsResponse }) {
       minute: "2-digit",
       second: "2-digit",
     })
+
+  const chartRows = sortedProviders
+    .map((p) => ({
+      provider: p,
+      value: modality === "all" ? p.avgStandardInput : p.avgByModality[modality] ?? null,
+    }))
+    .filter((r) => r.value !== null)
+  const maxAvg = Math.max(...chartRows.map((r) => r.value ?? 0), 1)
 
   return (
     <div className="space-y-8">
@@ -69,26 +79,51 @@ export function Overview({ stats }: { stats: StatsResponse }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Average standard input price per provider</CardTitle>
+          <CardTitle>
+            Average standard input price per provider
+            {modality !== "all" ? ` — ${modality}` : ""}
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={modality === "all" ? "default" : "outline"}
+              onClick={() => setModality("all")}
+            >
+              All
+            </Button>
+            {s.modalities.map((m) => (
+              <Button
+                key={m}
+                size="sm"
+                variant={modality === m ? "default" : "outline"}
+                onClick={() => setModality(m)}
+              >
+                {m}
+              </Button>
+            ))}
+          </div>
           <div className="space-y-3">
-            {sortedProviders.map((p) => (
+            {chartRows.map(({ provider: p, value }) => (
               <div key={p.provider} className="flex items-center gap-3">
                 <span className="w-28 shrink-0 truncate text-sm">{p.provider}</span>
                 <div className="h-4 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-primary"
                     style={{
-                      width: `${Math.max(((p.avgStandardInput ?? 0) / maxAvg) * 100, 1)}%`,
+                      width: `${Math.max(((value ?? 0) / maxAvg) * 100, 1)}%`,
                     }}
                   />
                 </div>
                 <span className="w-24 shrink-0 text-right text-sm tabular-nums">
-                  {p.avgStandardInput !== null ? fmtUsd(p.avgStandardInput) : "—"}
+                  {fmtUsd(value)}
                 </span>
               </div>
             ))}
+            {chartRows.length === 0 && (
+              <p className="text-sm text-muted-foreground">No providers price this modality.</p>
+            )}
           </div>
         </CardContent>
       </Card>

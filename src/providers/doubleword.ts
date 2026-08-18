@@ -5,6 +5,8 @@ import type {
   ProviderPricing,
 } from "../types.js";
 
+import { inferModelModality } from "../utils/modality.js";
+
 const URL =
   "https://docs.doubleword.ai/api/models";
 
@@ -81,6 +83,7 @@ function tokenPrice(
   dollarsPerToken:
     | number
     | undefined,
+  modality: Price["modality"] = "text",
 ): Price | undefined {
   if (
     dollarsPerToken === undefined ||
@@ -107,7 +110,7 @@ function tokenPrice(
 
     pricingType: "token",
 
-    modality: "text",
+    modality,
   };
 }
 
@@ -120,6 +123,7 @@ function addTier(
         output?: number;
       }
     | undefined,
+  modality: Price["modality"] = "text",
 ) {
   if (!pricing) {
     return;
@@ -135,10 +139,16 @@ function addTier(
   };
 
   const input =
-    tokenPrice(pricing.input);
+    tokenPrice(
+      pricing.input,
+      modality,
+    );
 
   const output =
-    tokenPrice(pricing.output);
+    tokenPrice(
+      pricing.output,
+      modality,
+    );
 
   if (input) {
     tier.input?.push(input);
@@ -190,16 +200,22 @@ function parseModel(
     },
   };
 
+  const modality: Price["modality"] =
+    inferModelModality(source) ??
+    "text";
+
   addTier(
     model,
     "async",
     source.pricing.async,
+    modality,
   );
 
   addTier(
     model,
     "batch24h",
     source.pricing.batch24h,
+    modality,
   );
 
   addTier(
@@ -207,6 +223,7 @@ function parseModel(
     "realtime",
     source.pricing.realtime ??
       undefined,
+    modality,
   );
 
   /*

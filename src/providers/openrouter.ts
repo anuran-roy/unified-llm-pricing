@@ -5,6 +5,8 @@ import type {
   ProviderPricing,
 } from "../types.js";
 
+import { inferModelModality } from "../utils/modality.js";
+
 const MODELS_URL =
   "https://openrouter.ai/api/v1/models";
 
@@ -98,7 +100,7 @@ interface OpenRouterEndpointsResponse {
  */
 function tokenPrice(
   value: string | undefined,
-  modality: "text" | "image" | "audio" = "text",
+  modality: Price["modality"] = "text",
 ): Price | undefined {
   if (value === undefined) {
     return undefined;
@@ -165,6 +167,7 @@ function unitPrice(
  */
 function normalizePricing(
   pricing?: Record<string, string>,
+  modality: Price["modality"] = "text",
 ): PricingTier {
   const tier: PricingTier = {
     name: "default",
@@ -181,7 +184,7 @@ function normalizePricing(
 
   const prompt = tokenPrice(
     pricing.prompt,
-    "text",
+    modality,
   );
 
   if (prompt) {
@@ -190,7 +193,7 @@ function normalizePricing(
 
   const completion = tokenPrice(
     pricing.completion,
-    "text",
+    modality,
   );
 
   if (completion) {
@@ -199,7 +202,7 @@ function normalizePricing(
 
   const cacheRead = tokenPrice(
     pricing.input_cache_read,
-    "text",
+    modality,
   );
 
   if (cacheRead) {
@@ -208,7 +211,7 @@ function normalizePricing(
 
   const cacheWrite = tokenPrice(
     pricing.input_cache_write,
-    "text",
+    modality,
   );
 
   if (cacheWrite) {
@@ -248,7 +251,7 @@ function normalizePricing(
 
   const reasoning = tokenPrice(
     pricing.internal_reasoning,
-    "text",
+    modality,
   );
 
   if (reasoning) {
@@ -256,6 +259,21 @@ function normalizePricing(
   }
 
   return tier;
+}
+
+/**
+ * Infer the price modality of an OpenRouter model from its
+ * architecture. Embedding, image, audio, and video models
+ * report non-text output modalities even though their token
+ * prices are not labelled as such in the pricing payload.
+ */
+function modelModality(
+  model: OpenRouterModel,
+): Price["modality"] {
+  return (
+    inferModelModality(model) ??
+    "text"
+  );
 }
 
 /**
@@ -383,7 +401,10 @@ function normalizeEndpoint(
       .replace(/\s+/g, "-");
 
   const tier =
-    normalizePricing(endpoint.pricing);
+    normalizePricing(
+      endpoint.pricing,
+      modelModality(model),
+    );
 
   return {
     /**
@@ -554,6 +575,7 @@ export async function getOpenRouterPricing():
           tiers: [
             normalizePricing(
               model.pricing,
+              modelModality(model),
             ),
           ],
 

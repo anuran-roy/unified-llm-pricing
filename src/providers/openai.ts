@@ -12,6 +12,8 @@ import {
   tableRows,
 } from "../utils/markdown.js";
 
+import { inferModelModality } from "../utils/modality.js";
+
 const URL =
   "https://developers.openai.com/api/docs/pricing.md";
 
@@ -155,6 +157,16 @@ function parseOpenAIMarkdown(
               .trim()
           : "text";
 
+      /*
+       * The pricing table does not label every row with
+       * its modality (e.g. embeddings, audio, video), so
+       * infer it from the model ID when the row says text.
+       */
+      const inferredModality =
+        inferModelModality({
+          id,
+        });
+
       for (
         let i = 1;
         i < row.length;
@@ -180,7 +192,10 @@ function parseOpenAIMarkdown(
           );
 
         price.modality =
-          modality;
+          modality === "text"
+            ? inferredModality ??
+              "text"
+            : modality;
 
         let category:
           | "input"

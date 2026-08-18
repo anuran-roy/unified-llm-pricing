@@ -12,6 +12,8 @@ import {
   tableRows,
 } from "../utils/markdown.js";
 
+import { inferModelModality } from "../utils/modality.js";
+
 const URL =
   "https://console.groq.com/docs/models.md";
 
@@ -19,6 +21,7 @@ const PROVIDER = "groq";
 
 function detectPrice(
   value: string,
+  modelId: string,
 ): Price | null {
   const amount =
     parseNumber(
@@ -62,7 +65,10 @@ function detectPrice(
     currency: "USD",
     units: 1_000_000,
     pricingType: "token",
-    modality: "text",
+    modality:
+      inferModelModality({
+        id: modelId,
+      }) ?? "text",
     raw: value,
   };
 }
@@ -94,6 +100,7 @@ function ensureTier(
 function parsePricingCell(
   value: string,
   tier: PricingTier,
+  modelId: string,
 ) {
   /*
    * Examples:
@@ -116,7 +123,7 @@ function parsePricingCell(
       match[0];
 
     const p =
-      detectPrice(raw);
+      detectPrice(raw, modelId);
 
     if (p) {
       tier.input?.push(p);
@@ -133,7 +140,7 @@ function parsePricingCell(
       match[0];
 
     const p =
-      detectPrice(raw);
+      detectPrice(raw, modelId);
 
     if (p) {
       tier.output?.push(p);
@@ -149,7 +156,7 @@ function parsePricingCell(
     )
   ) {
     const p =
-      detectPrice(value);
+      detectPrice(value, modelId);
 
     if (p) {
       tier.other?.push(p);
@@ -234,6 +241,7 @@ function parseGroqMarkdown(
       parsePricingCell(
         pricing,
         tier,
+        modelId,
       );
 
       /*

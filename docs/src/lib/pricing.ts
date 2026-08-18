@@ -1,7 +1,43 @@
 import type { ModelPricing, PricingData, Price } from "./types";
 
-export const TOKEN_MODALITIES = ["text", "audio", "image", "video", "embedding"] as const;
+export const TOKEN_MODALITIES = ["text", "audio", "image", "video", "embedding", "rerank"] as const;
 export type TokenModality = (typeof TOKEN_MODALITIES)[number];
+
+export function inferModality(model: ModelPricing): TokenModality | undefined {
+  const mode = model.metadata?.mode;
+  if (mode === "embedding" || model.metadata?.type === "Embedding") return "embedding";
+  if (mode === "image_generation" || mode === "image_edit") return "image";
+  if (mode === "video_generation") return "video";
+  if (mode === "rerank") return "rerank";
+  if (mode === "audio_transcription" || mode === "audio_speech" || mode === "text_to_speech") return "audio";
+
+  const arch = model.metadata?.architecture as { modality?: string } | undefined;
+  const output = arch?.modality?.split("->")[1] ?? "";
+  const kinds = output
+    .split("+")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  if (kinds.length === 1) {
+    if (kinds[0] === "embeddings") return "embedding";
+    if (kinds[0] === "rerank") return "rerank";
+    if (kinds[0] === "image") return "image";
+    if (kinds[0] === "video") return "video";
+    if (kinds[0] === "audio" || kinds[0] === "speech" || kinds[0] === "transcription") return "audio";
+  }
+
+  const idName = `${model.id} ${model.name}`;
+  if (/embed/i.test(idName)) return "embedding";
+  if (/rerank/i.test(idName)) return "rerank";
+  if (/imagen|\bimage\b/i.test(idName)) return "image";
+  if (/\bsora\b|\bveo\b|video/i.test(idName)) return "video";
+  if (/\blyria\b|tts|transcrib|whisper|audio/i.test(idName)) return "audio";
+  return undefined;
+}
+
+export function effectiveModality(model: ModelPricing, price: Price): string {
+  if (price.modality && price.modality !== "text") return price.modality;
+  return inferModality(model) ?? price.modality ?? "text";
+}
 
 export function usdPerMillion(price: Price): number | null {
   if (price.currency !== "USD" || price.pricingType !== "token") return null;
@@ -25,16 +61,19 @@ export function fmtUsd(n: number | null): string {
   }).format(n);
 }
 
-export function tierModalities(tier: {
-  input: Price[];
-  output: Price[];
-  cacheRead: Price[];
-  cacheWrite: Price[];
-}): string {
+export function tierModalities(
+  model: ModelPricing,
+  tier: {
+    input: Price[];
+    output: Price[];
+    cacheRead: Price[];
+    cacheWrite: Price[];
+  }
+): string {
   const set = new Set<string>();
   for (const arr of [tier.input, tier.output, tier.cacheRead, tier.cacheWrite]) {
     for (const p of arr) {
-      if (p.pricingType === "token" && p.modality) set.add(p.modality);
+      if (p.pricingType === "token") set.add(effectiveModality(model, p));
     }
   }
   if (set.size === 0) return "text";
@@ -68,7 +107,7 @@ export function buildRows(data: PricingData): ModelRow[] {
           modelId: model.id,
           modelName: model.name,
           tier: tier.name,
-          modality: tierModalities(tier),
+          modality: tierModalities(model, tier),
           input: input ? usdPerMillion(input) : null,
           output: output ? usdPerMillion(output) : null,
           cacheRead: cacheRead ? usdPerMillion(cacheRead) : null,
@@ -139,6 +178,7 @@ export interface ProviderStat {
   cheapestInput: number | null;
   cheapestModel: string | null;
   avgStandardInput: number | null;
+  avgByModality: Record<string, number | null>;
 }
 
 export interface OverviewStats {
@@ -150,6 +190,7 @@ export interface OverviewStats {
   perProvider: ProviderStat[];
   modalityCounts: Record<string, number>;
   tierCounts: Record<string, number>;
+  modalities: string[];
 }
 
 export function computeStats(data: PricingData): OverviewStats {
@@ -157,31 +198,40 @@ export function computeStats(data: PricingData): OverviewStats {
   const modalityCounts: Record<string, number> = {};
   const tierCounts: Record<string, number> = {};
   const standardInputs: number[] = [];
+  const standardModalities = new Set<string>();
   let cheapestOverall: { model: string; provider: string; price: number } | null = null;
 
   for (const provider of data.providers) {
     let cheapestInput: number | null = null;
     let cheapestModel: string | null = null;
     const inputs: number[] = [];
+    const inputsByModality: Record<string, number[]> = {};
     for (const model of provider.models) {
+      const mainTier = getStandardTier(model);
       const modalities = new Set<string>();
       for (const tier of model.tiers) {
         tierCounts[tier.name] = (tierCounts[tier.name] ?? 0) + 1;
         for (const arr of [tier.input, tier.output, tier.cacheRead, tier.cacheWrite]) {
           for (const p of arr) {
-            if (p.pricingType === "token" && p.modality) modalities.add(p.modality);
-            if (tier.name === "standard" || model.tiers.length === 1) {
+            if (p.pricingType !== "token") continue;
+            modalities.add(effectiveModality(model, p));
+            if (tier === mainTier) {
               const v = usdPerMillion(p);
-              if (v !== null && p.pricingType === "token") inputs.push(v);
+              if (v !== null) {
+                inputs.push(v);
+                const mod = effectiveModality(model, p);
+                (inputsByModality[mod] ??= []).push(v);
+                standardModalities.add(mod);
+              }
             }
           }
         }
-        const inputPrice = pickTokenPrice(tier.input);
-        const v = inputPrice ? usdPerMillion(inputPrice) : null;
-        if (v !== null && (cheapestInput === null || v < cheapestInput)) {
-          cheapestInput = v;
-          cheapestModel = model.name;
-        }
+      }
+      const inputPrice = mainTier ? pickTokenPrice(mainTier.input) : null;
+      const v = inputPrice ? usdPerMillion(inputPrice) : null;
+      if (v !== null && (cheapestInput === null || v < cheapestInput)) {
+        cheapestInput = v;
+        cheapestModel = model.name;
       }
       for (const m of modalities) modalityCounts[m] = (modalityCounts[m] ?? 0) + 1;
     }
@@ -192,12 +242,17 @@ export function computeStats(data: PricingData): OverviewStats {
       }
     }
     const sorted = [...inputs].sort((a, b) => a - b);
+    const avgByModality: Record<string, number | null> = {};
+    for (const [mod, vals] of Object.entries(inputsByModality)) {
+      avgByModality[mod] = vals.reduce((a, b) => a + b, 0) / vals.length;
+    }
     perProvider.push({
       provider: provider.provider,
       modelCount: provider.models.length,
       cheapestInput,
       cheapestModel,
       avgStandardInput: sorted.length ? sorted.reduce((a, b) => a + b, 0) / sorted.length : null,
+      avgByModality,
     });
   }
 
@@ -218,6 +273,7 @@ export function computeStats(data: PricingData): OverviewStats {
     perProvider,
     modalityCounts,
     tierCounts,
+    modalities: [...standardModalities].sort(),
   };
 }
 

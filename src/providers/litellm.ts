@@ -240,13 +240,18 @@ function modeModality(
 ): Price["modality"] | undefined {
   switch (mode) {
     case "image_generation":
+    case "image_edit":
       return "image";
     case "audio_speech":
     case "audio_transcription":
     case "realtime":
       return "audio";
+    case "video_generation":
+      return "video";
     case "embedding":
       return "embedding";
+    case "rerank":
+      return "rerank";
     default:
       return "text";
   }
