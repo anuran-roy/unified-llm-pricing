@@ -1,32 +1,33 @@
 import fs from "node:fs/promises";
 import {
   getClaudePricing,
-} from "./providers/claude.js";
+} from "./providers/claude";
 import {
   getDoublewordPricing,
-} from "./providers/doubleword.js";
+} from "./providers/doubleword";
 import {
   getGeminiPricing,
-} from "./providers/gemini.js";
+} from "./providers/gemini";
 import {
   getGroqPricing,
-} from "./providers/groq.js";
+} from "./providers/groq";
 import {
   getOpenAIPricing,
-} from "./providers/openai.js";
+} from "./providers/openai";
 import {
   getOpenRouterPricing,
-} from "./providers/openrouter.js";
+} from "./providers/openrouter";
 import type {
   ProviderPricing,
   UnifiedPricing,
-} from "./types.js";
+} from "./types";
 
 const OUTPUT_FILE =
   "data/pricing.json";
 
 async function main() {
   const providers: ProviderPricing[] = [];
+  const startTime = performance.now();
 
   providers.push(
     await getGeminiPricing(),
@@ -86,6 +87,8 @@ async function main() {
       `${provider.models.length} models`,
     );
   }
+
+  console.log(`Total time taken = ${performance.now() - startTime}ms`);
 }
 
 main().catch((error) => {

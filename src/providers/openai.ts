@@ -31,31 +31,6 @@ function tokenPrice(
   };
 }
 
-function extractModelId(
-  value: string,
-): string | null {
-  /*
-   * OpenAI pricing headings commonly contain
-   * model IDs such as:
-   *
-   * GPT-5.5
-   * gpt-5.5
-   * GPT-4o
-   * o3-mini
-   */
-  const match = value.match(
-    /`([a-zA-Z0-9][a-zA-Z0-9._:-]*)`/,
-  );
-
-  return (
-    match?.[1] ??
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9._:-]+/g, "-")
-      .replace(/^-|-$/g, "")
-  );
-}
-
 function parsePrice(
   value: string,
 ): number | null {
@@ -90,86 +65,6 @@ function ensureTier(
   return tier;
 }
 
-function parsePricingTable(
-  rows: string[][],
-  model: ModelPricing,
-  tierName: string,
-) {
-  if (rows.length < 2) {
-    return;
-  }
-
-  const headers =
-    rows[0].map((x) =>
-      x.toLowerCase(),
-    );
-
-  const tier =
-    ensureTier(model, tierName);
-
-  for (const row of rows.slice(1)) {
-    const label =
-      row[0]?.toLowerCase() ?? "";
-
-    for (
-      let i = 1;
-      i < row.length;
-      i++
-    ) {
-      const header =
-        headers[i] ?? "";
-
-      const value = row[i];
-
-      if (!value) {
-        continue;
-      }
-
-      const amount =
-        parsePrice(value);
-
-      if (amount === null) {
-        continue;
-      }
-
-      const price =
-        tokenPrice(amount, value);
-
-      if (
-        /cached input|cache hit|cache read/i.test(
-          label + " " + header,
-        )
-      ) {
-        tier.cacheRead?.push(
-          price,
-        );
-      } else if (
-        /cache write/i.test(
-          label + " " + header,
-        )
-      ) {
-        tier.cacheWrite?.push(
-          price,
-        );
-      } else if (
-        /input/i.test(
-          label + " " + header,
-        )
-      ) {
-        tier.input?.push(price);
-      } else if (
-        /output/i.test(
-          label + " " + header,
-        )
-      ) {
-        tier.output?.push(price);
-      } else {
-        tier.other?.push(price);
-      }
-    }
-  }
-}
-
 function parseOpenAIMarkdown(
   markdown: string,
 ): ModelPricing[] {
@@ -177,13 +72,19 @@ function parseOpenAIMarkdown(
     parseMarkdown(markdown);
 
   const models: ModelPricing[] = [];
+  const byId = new Map<
+    string,
+    ModelPricing
+  >();
 
-  let currentModel:
-    | ModelPricing
-    | null = null;
-
-  let currentTier =
-    "standard";
+  /*
+   * The pricing document is now organized as
+   * tier sections ("Standard pricing data",
+   * "Batch pricing data", ...), each followed
+   * by a table whose first column is the
+   * model ID.
+   */
+  let currentTier = "standard";
 
   for (const node of tree.children) {
     if (node.type === "heading") {
@@ -193,65 +94,180 @@ function parseOpenAIMarkdown(
           .join("")
           .trim();
 
-      const modelId =
-        extractModelId(heading);
+      const tierMatch =
+        heading.match(
+          /^(standard|batch|flex|fast)\s+pricing/i,
+        );
 
-      /*
-       * Don't treat generic pricing sections
-       * as models.
-       */
-      if (
-        modelId &&
-        !/pricing|api|batch|cache/i.test(
-          heading,
-        )
+      currentTier = tierMatch
+        ? tierMatch[1].toLowerCase()
+        : "standard";
+
+      continue;
+    }
+
+    if (node.type !== "table") {
+      continue;
+    }
+
+    const rows =
+      tableRows(node);
+
+    if (rows.length < 2) {
+      continue;
+    }
+
+    const headers =
+      rows[0].map((x) =>
+        x.toLowerCase(),
+      );
+
+    const modalityColumn =
+      headers.findIndex((h) =>
+        h.includes("modality"),
+      );
+
+    for (const row of rows.slice(1)) {
+      const id =
+        row[0]?.trim() ?? "";
+
+      if (!id) {
+        continue;
+      }
+
+      const prices: {
+        price: Price;
+        category:
+          | "input"
+          | "output"
+          | "cacheRead"
+          | "cacheWrite"
+          | "other";
+      }[] = [];
+
+      const modality =
+        modalityColumn >= 0
+          ? (
+              row[modalityColumn] ??
+              ""
+            )
+              .toLowerCase()
+              .trim()
+          : "text";
+
+      for (
+        let i = 1;
+        i < row.length;
+        i++
       ) {
-        currentModel = {
-          id: modelId,
-          name: heading,
+        const header =
+          headers[i] ?? "";
+
+        const value =
+          row[i] ?? "";
+
+        const amount =
+          parsePrice(value);
+
+        if (amount === null) {
+          continue;
+        }
+
+        const price =
+          tokenPrice(
+            amount,
+            value,
+          );
+
+        price.modality =
+          modality;
+
+        let category:
+          | "input"
+          | "output"
+          | "cacheRead"
+          | "cacheWrite"
+          | "other" =
+          "other";
+
+        if (
+          /cached input|cache hit|cache read/i.test(
+            header,
+          )
+        ) {
+          category = "cacheRead";
+        } else if (
+          /cache write/i.test(
+            header,
+          )
+        ) {
+          category = "cacheWrite";
+        } else if (
+          /input/i.test(header)
+        ) {
+          category = "input";
+        } else if (
+          /output/i.test(header)
+        ) {
+          category = "output";
+        }
+
+        prices.push({
+          price,
+          category,
+        });
+      }
+
+      if (prices.length === 0) {
+        continue;
+      }
+
+      let model = byId.get(id);
+
+      if (!model) {
+        model = {
+          id,
+          name: id,
           provider: PROVIDER,
           tiers: [],
         };
 
-        models.push(currentModel);
+        byId.set(id, model);
 
-        currentTier =
-          "standard";
+        models.push(model);
+      }
 
+      const tier =
         ensureTier(
-          currentModel,
+          model,
           currentTier,
         );
 
-        continue;
-      }
-
-      if (
-        /^(batch|flex|standard)$/i.test(
-          heading,
-        )
-      ) {
-        currentTier =
-          heading.toLowerCase();
-
-        if (currentModel) {
-          ensureTier(
-            currentModel,
-            currentTier,
-          );
+      for (const {
+        price,
+        category,
+      } of prices) {
+        switch (category) {
+          case "input":
+            tier.input?.push(price);
+            break;
+          case "output":
+            tier.output?.push(price);
+            break;
+          case "cacheRead":
+            tier.cacheRead?.push(
+              price,
+            );
+            break;
+          case "cacheWrite":
+            tier.cacheWrite?.push(
+              price,
+            );
+            break;
+          default:
+            tier.other?.push(price);
         }
       }
-    }
-
-    if (
-      node.type === "table" &&
-      currentModel
-    ) {
-      parsePricingTable(
-        tableRows(node),
-        currentModel,
-        currentTier,
-      );
     }
   }
 

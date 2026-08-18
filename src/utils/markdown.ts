@@ -5,6 +5,7 @@ import type {
   TableRow,
 } from "mdast";
 import remarkParse from "remark-parse";
+import remarkGfm from "remark-gfm";
 import { unified } from "unified";
 
 export function parseMarkdown(
@@ -12,6 +13,7 @@ export function parseMarkdown(
 ): Root {
   return unified()
     .use(remarkParse)
+    .use(remarkGfm)
     .parse(markdown) as Root;
 }
 
@@ -22,6 +24,10 @@ export function nodeText(node: any): string {
 
   if (typeof node === "string") {
     return node;
+  }
+
+  if (typeof node.value === "string") {
+    return node.value;
   }
 
   if (node.children) {

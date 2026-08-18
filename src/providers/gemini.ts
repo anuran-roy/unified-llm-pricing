@@ -1,19 +1,20 @@
-import { unified } from "unified";
-import remarkParse from "remark-parse";
-import { visit } from "unist-util-visit";
 import type {
   Root,
   Table,
-  TableRow,
   TableCell,
+  TableRow,
 } from "mdast";
+import remarkParse from "remark-parse";
+import remarkGfm from "remark-gfm";
+import { unified } from "unified";
+import { visit } from "unist-util-visit";
 
 import type {
+  Modality,
   ModelPricing,
   Price,
   PricingTier,
   ProviderPricing,
-  Modality,
 } from "../types.js";
 
 const GEMINI_PRICING_URL =
@@ -65,6 +66,10 @@ function getText(node: any): string {
     return node;
   }
 
+  if (typeof node.value === "string") {
+    return node.value;
+  }
+
   if (node.children) {
     return node.children
       .map(getText)
@@ -83,16 +88,48 @@ function clean(value: string): string {
 }
 
 /**
- * Extract a Gemini model ID from a heading.
+ * Extract a Gemini model ID from a heading,
+ * e.g. "`gemini-3.7-flash`".
  */
 function extractModelId(
   value: string,
 ): string | null {
   const match = value.match(
-    /`?([a-z0-9]+(?:-[a-z0-9]+)+)`?/i,
+    /`([a-zA-Z0-9][a-zA-Z0-9._:-]*)`/,
   );
 
   return match?.[1] ?? null;
+}
+
+/**
+ * Extract a model ID from an inline code
+ * node, e.g. `*`gemini-3.7-flash`*`.
+ */
+function extractModelIdFromNode(
+  node: any,
+): string | null {
+  if (node.type === "inlineCode") {
+    const match = node.value.match(
+      /^([a-zA-Z0-9][a-zA-Z0-9._:-]*)$/,
+    );
+
+    return match?.[1] ?? null;
+  }
+
+  if (node.children) {
+    for (const child of node.children) {
+      const id =
+        extractModelIdFromNode(
+          child,
+        );
+
+      if (id) {
+        return id;
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -349,6 +386,7 @@ function parseGeminiMarkdown(
 ): ModelPricing[] {
   const tree = unified()
     .use(remarkParse)
+    .use(remarkGfm)
     .parse(markdown) as Root;
 
   const models: ModelPricing[] = [];
@@ -368,16 +406,23 @@ function parseGeminiMarkdown(
       let modelId =
         extractModelId(heading);
 
+      /*
+       * Google moved the model ID out of the
+       * heading and into the paragraph that
+       * follows it, e.g. "`gemini-3.7-flash`".
+       */
       if (!modelId && parent) {
         const next =
           parent.children[
             (index ?? 0) + 1
           ];
 
-        if (next) {
+        if (
+          next?.type === "paragraph"
+        ) {
           modelId =
-            extractModelId(
-              getText(next),
+            extractModelIdFromNode(
+              next,
             );
         }
       }
@@ -435,8 +480,7 @@ function parseGeminiMarkdown(
 
   if (models.length === 0) {
     throw new Error(
-      "Gemini parser extracted zero models. " +
-      "Google may have changed the pricing page structure.",
+      "Gemini parser extracted zero models. Google may have changed the pricing page structure.",
     );
   }
 
