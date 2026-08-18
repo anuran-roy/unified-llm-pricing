@@ -1,22 +1,5 @@
 import fs from "node:fs/promises";
-import {
-  getClaudePricing,
-} from "./providers/claude";
-import {
-  getDoublewordPricing,
-} from "./providers/doubleword";
-import {
-  getGeminiPricing,
-} from "./providers/gemini";
-import {
-  getGroqPricing,
-} from "./providers/groq";
-import {
-  getOpenAIPricing,
-} from "./providers/openai";
-import {
-  getOpenRouterPricing,
-} from "./providers/openrouter";
+import { PROVIDER_REGISTRY } from "./providers/registry";
 import type {
   ProviderPricing,
   UnifiedPricing,
@@ -25,33 +8,15 @@ import type {
 const OUTPUT_FILE =
   "data/pricing.json";
 
+
+
 async function main() {
   const providers: ProviderPricing[] = [];
   const startTime = performance.now();
 
-  providers.push(
-    await getGeminiPricing(),
-  );
-
-  providers.push(
-    await getOpenAIPricing(),
-  );
-
-  providers.push(
-    await getClaudePricing(),
-  );
-
-  providers.push(
-    await getGroqPricing(),
-  );
-
-  providers.push(
-    await getDoublewordPricing(),
-  );
-
-  providers.push(
-    await getOpenRouterPricing(),
-  );
+  for (const getPricing of Object.values(PROVIDER_REGISTRY)) {
+    providers.push(await getPricing());
+  }
 
   const result: UnifiedPricing = {
     generatedAt:
@@ -67,11 +32,11 @@ async function main() {
 
   await fs.writeFile(
     OUTPUT_FILE,
-    JSON.stringify(
+    `${JSON.stringify(
       result,
       null,
       2,
-    ) + "\n",
+    )}\n`,
     "utf8",
   );
 
@@ -83,12 +48,11 @@ async function main() {
     const provider of providers
   ) {
     console.log(
-      `${provider.provider}: ` +
-      `${provider.models.length} models`,
+      `${provider.provider}: ${provider.models.length} models`,
     );
   }
 
-  console.log(`Total time taken = ${performance.now() - startTime}ms`);
+  console.log(`Total time taken = ${((performance.now() - startTime)/1000).toFixed(4)} s`);
 }
 
 main().catch((error) => {

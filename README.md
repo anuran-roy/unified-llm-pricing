@@ -79,6 +79,92 @@ curl https://raw.githubusercontent.com/anuran-roy/unified-llm-pricing/refs/heads
       - Each tier has `input`, `output`, `cacheRead`, `cacheWrite`, `other` arrays of prices.
 - Each `Price` has `amount`, `currency`, `pricingType` (`token` | `minute` | `hour` | `image` | `request`), `units` (price per `units`, e.g. `1000000` tokens), optional `modality` (`text` | `image` | `audio` | `video`), and `raw` (the original string from the source).
 
+## Contributing
+
+### Reporting Errata
+Please open issues to report errors. We're parsing loads of data, so any help is welcome!
+
+### Adding a provider
+
+The pipeline is driven by `src/providers/registry.ts` — `src/index.ts` iterates `PROVIDER_REGISTRY`, so registering a provider is the only wiring needed (the GitHub Action picks it up automatically).
+
+**Important: keep the types the same.** Every provider must return the exact `ProviderPricing` shape from `src/types.ts`. Do not add provider-specific fields to `ModelPricing`/`Price`/`PricingTier`; anything extra goes in the optional `metadata`/`endpoints` fields. Consumers of `data/pricing.json` rely on the shared contract.
+
+#### 1. Create `src/providers/<name>.ts`
+
+```ts
+import type {
+  ModelPricing,
+  ProviderPricing,
+} from "../types";
+
+const PROVIDER = "myprovider";
+const URL = "https://example.com/pricing.md";
+
+export async function getMyProviderPricing(): Promise<ProviderPricing> {
+  const models: ModelPricing[] = [
+    {
+      id: "my-model-1",
+      name: "My Model 1",
+      provider: PROVIDER,
+      tiers: [
+        {
+          name: "standard",
+          input: [
+            {
+              amount: 1.5,
+              currency: "USD",
+              pricingType: "token",
+              units: 1_000_000,
+            },
+          ],
+          output: [],
+          cacheRead: [],
+          cacheWrite: [],
+          other: [],
+        },
+      ],
+    },
+  ];
+
+  return {
+    provider: PROVIDER,
+    source: {
+      url: URL,
+      fetchedAt: new Date().toISOString(),
+    },
+    models,
+  };
+}
+```
+
+Contract:
+
+- The exported function must return `Promise<ProviderPricing>` (`{ provider, source: { url, fetchedAt }, models: ModelPricing[] }`).
+- Use `pricingType` + `units` to express the price basis (`"token"` with `units: 1_000_000` for per-1M-token prices, `"request"` with `units: 1_000`, `"minute"`/`"hour"`/`"image"` with `units: 1`, etc.).
+- Keep the tier buckets semantic: `input`, `output`, `cacheRead`, `cacheWrite`, `other`.
+- Relative imports need no `.js` extension (the build emits CommonJS).
+
+#### 2. Register it in `src/providers/registry.ts`
+
+```ts
+import { getMyProviderPricing } from "./myprovider";
+
+export const PROVIDER_REGISTRY = {
+  // ...existing providers
+  myprovider: getMyProviderPricing,
+};
+```
+
+#### 3. Verify
+
+```bash
+npm run build
+npm start
+```
+
+The new provider should appear in the console summary (`myprovider: N models`) and in `data/pricing.json`.
+
 ## Run
 
 ```bash
