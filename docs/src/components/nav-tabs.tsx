@@ -16,7 +16,7 @@ export function NavTabs() {
   const pathname = usePathname()
   const router = useRouter()
   const [copied, setCopied] = useState(false)
-  const active = TABS.some((t) => t.path === pathname) ? pathname : "/"
+  const active = TABS.find((t) => t.path === pathname)?.path ?? ""
 
   const copyShareUrl = async () => {
     const url = window.location.href
