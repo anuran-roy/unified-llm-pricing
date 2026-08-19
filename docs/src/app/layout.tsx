@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Button } from "@/components/ui/button";
+import { ModeToggle } from "@/components/mode-toggle";
 import { NavTabs } from "@/components/nav-tabs";
+import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -25,10 +27,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <TooltipProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <TooltipProvider>
           <header className="border-b">
             <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4">
               <div>
@@ -50,6 +54,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                     Star it on GitHub
                   </a>
                 </Button>
+                <ModeToggle />
               </nav>
             </div>
           </header>
@@ -80,7 +85,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </p>
             </div>
           </footer>
-        </TooltipProvider>
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
