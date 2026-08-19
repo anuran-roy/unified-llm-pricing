@@ -1,0 +1,350 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Unified LLM Pricing API",
+    "description": "Normalized per-token pricing for LLM models across providers. Data is regenerated daily from provider APIs and served from `data/pricing.json` (see the [raw dataset](https://raw.githubusercontent.com/anuran-roy/unified-llm-pricing/refs/heads/main/data/pricing.json)).\n\nAll prices are USD per 1 million tokens. Fields may be `null` when a provider does not publish a price.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://unified-llm-pricing.anuran.dev",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    { "name": "Stats", "description": "Aggregate overview of the dataset" },
+    { "name": "Leaderboard", "description": "Per-model pricing across all providers" },
+    { "name": "Availability", "description": "Models grouped by availability across providers" },
+    { "name": "Tiers", "description": "Discounted tier pricing compared against the standard tier" }
+  ],
+  "paths": {
+    "/api/stats": {
+      "get": {
+        "tags": ["Stats"],
+        "summary": "Dataset overview",
+        "description": "Provider and model counts, cheapest models, per-provider statistics, and modality/tier breakdowns.",
+        "operationId": "getStats",
+        "responses": {
+          "200": {
+            "description": "Overview statistics",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatsResponse" } } }
+          },
+          "500": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/leaderboard": {
+      "get": {
+        "tags": ["Leaderboard"],
+        "summary": "List model prices",
+        "description": "Every provider/model pair with per-1M-token input, output, and cache pricing, plus tier and modality. Filter, sort, and paginate.",
+        "operationId": "getLeaderboard",
+        "parameters": [
+          { "$ref": "#/components/parameters/models" },
+          { "$ref": "#/components/parameters/provider" },
+          {
+            "name": "tier",
+            "in": "query",
+            "description": "Filter by pricing tier, e.g. `standard`, `batch`, `pro`.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "modality",
+            "in": "query",
+            "description": "Filter by modality: `text`, `image`, `audio`, `video`, `embedding`, or `rerank`.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "minSize",
+            "in": "query",
+            "description": "Minimum model size in billions of parameters (inclusive). Models with unknown size are always included.",
+            "schema": { "type": "number", "minimum": 0 }
+          },
+          {
+            "name": "maxSize",
+            "in": "query",
+            "description": "Maximum model size in billions of parameters (inclusive). Models with unknown size are always included.",
+            "schema": { "type": "number", "minimum": 0 }
+          },
+          { "$ref": "#/components/parameters/sortBy" },
+          { "$ref": "#/components/parameters/sortOrder" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated leaderboard rows and filter options",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LeaderboardResponse" } } }
+          },
+          "500": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/availability": {
+      "get": {
+        "tags": ["Availability"],
+        "summary": "Models by provider availability",
+        "description": "Models grouped into clusters by the set of providers that serve them, with per-provider prices. The `providers` parameter restricts clusters to those containing any of the given providers; use an empty value to return no clusters.",
+        "operationId": "getAvailability",
+        "parameters": [
+          { "$ref": "#/components/parameters/models" },
+          {
+            "name": "providers",
+            "in": "query",
+            "description": "Comma-separated provider ids, e.g. `openai,orcarouter`. Restricts clusters to models served by at least one of these providers.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "minProviders",
+            "in": "query",
+            "description": "Only include models available from at least this many providers.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 20, "default": 2 }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "Sort key.",
+            "schema": { "type": "string", "enum": ["count", "name", "input"], "default": "count" }
+          },
+          { "$ref": "#/components/parameters/sortOrder" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Availability clusters",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AvailabilityResponse" } } }
+          },
+          "500": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/tiers": {
+      "get": {
+        "tags": ["Tiers"],
+        "summary": "Compare tiers against standard pricing",
+        "description": "Each model tier compared against its provider's standard tier, with the percentage savings per 1M tokens.",
+        "operationId": "getTiers",
+        "parameters": [
+          { "$ref": "#/components/parameters/models" },
+          { "$ref": "#/components/parameters/provider" },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "Sort key.",
+            "schema": { "type": "string", "enum": ["savings", "input", "output", "modelName"], "default": "savings" }
+          },
+          { "$ref": "#/components/parameters/sortOrder" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/offset" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tier comparison rows",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TiersResponse" } } }
+          },
+          "500": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "models": {
+        "name": "models",
+        "in": "query",
+        "description": "Case-insensitive substring match on model name or id.",
+        "schema": { "type": "string" }
+      },
+      "provider": {
+        "name": "provider",
+        "in": "query",
+        "description": "Provider id, e.g. `openrouter`, `openai`, `orcarouter`.",
+        "schema": { "type": "string" }
+      },
+      "sortOrder": {
+        "name": "sortOrder",
+        "in": "query",
+        "description": "Sort direction. Missing prices sort last (descending) or first (ascending).",
+        "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
+      },
+      "limit": {
+        "name": "limit",
+        "in": "query",
+        "description": "Maximum number of rows to return.",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 }
+      },
+      "offset": {
+        "name": "offset",
+        "in": "query",
+        "description": "Number of rows to skip for pagination.",
+        "schema": { "type": "integer", "minimum": 0, "default": 0 }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": { "error": { "type": "string" } },
+              "required": ["error"]
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ApiMeta": {
+        "type": "object",
+        "properties": {
+          "generatedAt": { "type": "string", "format": "date-time", "description": "When the dataset was generated" },
+          "fetchedAt": { "type": "string", "format": "date-time", "description": "When this request fetched the dataset" },
+          "source": { "type": "string", "enum": ["remote"], "description": "Where the dataset came from" },
+          "error": { "type": "string", "description": "Present when the dataset could not be refreshed" }
+        },
+        "required": ["generatedAt", "fetchedAt", "source"]
+      },
+      "LeaderboardRow": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string" },
+          "modelId": { "type": "string" },
+          "modelName": { "type": "string" },
+          "tier": { "type": "string" },
+          "modality": { "type": "string", "description": "Space/plus-separated, e.g. `text`, `image`, `audio+video`" },
+          "sizeB": { "type": "number", "nullable": true, "description": "Model size in billions of parameters when known" },
+          "input": { "type": "number", "nullable": true, "description": "USD per 1M input tokens" },
+          "output": { "type": "number", "nullable": true, "description": "USD per 1M output tokens" },
+          "cacheRead": { "type": "number", "nullable": true, "description": "USD per 1M cached input tokens" },
+          "cacheWrite": { "type": "number", "nullable": true, "description": "USD per 1M tokens written to cache" }
+        },
+        "required": ["provider", "modelId", "modelName", "tier", "modality", "sizeB", "input", "output", "cacheRead", "cacheWrite"]
+      },
+      "LeaderboardFilters": {
+        "type": "object",
+        "properties": {
+          "providers": { "type": "array", "items": { "type": "string" } },
+          "tiers": { "type": "array", "items": { "type": "string" } },
+          "modalities": { "type": "array", "items": { "type": "string" } },
+          "sizeRange": { "type": "object", "nullable": true, "properties": { "min": { "type": "number" }, "max": { "type": "number" } } }
+        },
+        "required": ["providers", "tiers", "modalities", "sizeRange"]
+      },
+      "LeaderboardResponse": {
+        "type": "object",
+        "properties": {
+          "meta": { "$ref": "#/components/schemas/ApiMeta" },
+          "rows": { "type": "array", "items": { "$ref": "#/components/schemas/LeaderboardRow" } },
+          "total": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" },
+          "filters": { "$ref": "#/components/schemas/LeaderboardFilters" }
+        },
+        "required": ["meta", "rows", "total", "limit", "offset", "filters"]
+      },
+      "AvailabilityEntry": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string" },
+          "modelId": { "type": "string" },
+          "modelName": { "type": "string" },
+          "input": { "type": "number", "nullable": true },
+          "output": { "type": "number", "nullable": true },
+          "cacheRead": { "type": "number", "nullable": true },
+          "cacheWrite": { "type": "number", "nullable": true }
+        },
+        "required": ["provider", "modelId", "modelName", "input", "output", "cacheRead", "cacheWrite"]
+      },
+      "AvailabilityCluster": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "description": "Stable cluster key combining model and tier" },
+          "displayName": { "type": "string" },
+          "count": { "type": "integer", "description": "Number of providers serving this model" },
+          "entries": { "type": "array", "items": { "$ref": "#/components/schemas/AvailabilityEntry" } }
+        },
+        "required": ["key", "displayName", "count", "entries"]
+      },
+      "AvailabilityResponse": {
+        "type": "object",
+        "properties": {
+          "meta": { "$ref": "#/components/schemas/ApiMeta" },
+          "clusters": { "type": "array", "items": { "$ref": "#/components/schemas/AvailabilityCluster" } },
+          "providers": { "type": "array", "items": { "type": "string" }, "description": "Providers present in the filtered clusters" },
+          "total": { "type": "integer" },
+          "minProviders": { "type": "integer" }
+        },
+        "required": ["meta", "clusters", "providers", "total", "minProviders"]
+      },
+      "TierRow": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string" },
+          "modelId": { "type": "string" },
+          "modelName": { "type": "string" },
+          "standardTier": { "type": "string" },
+          "tier": { "type": "string" },
+          "input": { "type": "number", "nullable": true },
+          "output": { "type": "number", "nullable": true },
+          "standardInput": { "type": "number", "nullable": true },
+          "standardOutput": { "type": "number", "nullable": true },
+          "savingsPct": { "type": "number", "nullable": true, "description": "Percentage saved vs the standard tier" }
+        },
+        "required": ["provider", "modelId", "modelName", "standardTier", "tier", "input", "output", "standardInput", "standardOutput", "savingsPct"]
+      },
+      "TiersResponse": {
+        "type": "object",
+        "properties": {
+          "meta": { "$ref": "#/components/schemas/ApiMeta" },
+          "rows": { "type": "array", "items": { "$ref": "#/components/schemas/TierRow" } },
+          "total": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "offset": { "type": "integer" },
+          "filters": { "$ref": "#/components/schemas/LeaderboardFilters" }
+        },
+        "required": ["meta", "rows", "total", "limit", "offset", "filters"]
+      },
+      "ProviderStat": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string" },
+          "modelCount": { "type": "integer" },
+          "cheapestInput": { "type": "number", "nullable": true },
+          "cheapestModel": { "type": "string", "nullable": true },
+          "avgStandardInput": { "type": "number", "nullable": true },
+          "avgByModality": { "type": "object", "additionalProperties": { "type": "number", "nullable": true } }
+        },
+        "required": ["provider", "modelCount", "cheapestInput", "cheapestModel", "avgStandardInput", "avgByModality"]
+      },
+      "OverviewStats": {
+        "type": "object",
+        "properties": {
+          "providerCount": { "type": "integer" },
+          "modelCount": { "type": "integer" },
+          "multiProviderModelCount": { "type": "integer" },
+          "cheapestOverall": {
+            "type": "object",
+            "nullable": true,
+            "properties": { "model": { "type": "string" }, "provider": { "type": "string" }, "price": { "type": "number" } }
+          },
+          "medianStandardInput": { "type": "number", "nullable": true },
+          "perProvider": { "type": "array", "items": { "$ref": "#/components/schemas/ProviderStat" } },
+          "modalityCounts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "tierCounts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "modalities": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["providerCount", "modelCount", "multiProviderModelCount", "cheapestOverall", "medianStandardInput", "perProvider", "modalityCounts", "tierCounts", "modalities"]
+      },
+      "StatsResponse": {
+        "type": "object",
+        "properties": {
+          "meta": { "$ref": "#/components/schemas/ApiMeta" },
+          "stats": { "$ref": "#/components/schemas/OverviewStats" }
+        },
+        "required": ["meta", "stats"]
+      }
+    }
+  }
+}
