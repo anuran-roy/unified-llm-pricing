@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,14 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { fmtUsd } from "@/lib/pricing"
 import type { TiersResponse } from "@/lib/api"
+import type { TiersQuery } from "@/lib/leaderboard"
 
 const PAGE_SIZE = 100
 
-export function TierComparison({ initial }: { initial: TiersResponse }) {
-  const [models, setModels] = useState("")
-  const [provider, setProvider] = useState("all")
-  const [sortBy, setSortBy] = useState<string>("savings")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+export function TierComparison({ initial, initialQuery }: { initial: TiersResponse; initialQuery: TiersQuery }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const [models, setModels] = useState(initialQuery.models ?? "")
+  const [provider, setProvider] = useState(initialQuery.provider ?? "all")
+  const [sortBy, setSortBy] = useState<string>(initialQuery.sortBy ?? "savings")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(initialQuery.sortOrder ?? "desc")
   const [rows, setRows] = useState(initial.rows)
   const [total, setTotal] = useState(initial.total)
   const [loading, setLoading] = useState(false)
@@ -55,11 +59,13 @@ export function TierComparison({ initial }: { initial: TiersResponse }) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       void load(0, false)
+      const search = new URLSearchParams(params).toString()
+      router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false })
     }, 250)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [load])
+  }, [load, params, pathname, router])
 
   return (
     <div className="space-y-4">

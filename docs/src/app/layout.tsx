@@ -38,8 +38,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 </p>
               </div>
               <nav className="flex items-center gap-3 text-sm text-muted-foreground">
-                <a href="/api/leaderboard" className="hover:text-foreground">
-                  API: /api/leaderboard
+                <a href="/docs" className="hover:text-foreground">
+                  API Docs
                 </a>
                 <Button asChild size="sm">
                   <a

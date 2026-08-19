@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils"
 import { fmtUsd } from "@/lib/pricing"
 import type { AvailabilityEntry, AvailabilityResponse } from "@/lib/api"
+import type { AvailabilityQuery } from "@/lib/leaderboard"
 
 const PAGE_SIZE = 100
 
@@ -26,11 +28,13 @@ function priceLabel(e: AvailabilityEntry): string {
   return segs.join("\n")
 }
 
-export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }) {
-  const [models, setModels] = useState("")
-  const [minProviders, setMinProviders] = useState(String(initial.minProviders))
-  const [sortBy, setSortBy] = useState<string>("count")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+export function AvailabilityTable({ initial, initialQuery }: { initial: AvailabilityResponse; initialQuery: AvailabilityQuery }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const [models, setModels] = useState(initialQuery.models ?? "")
+  const [minProviders, setMinProviders] = useState(String(initialQuery.minProviders ?? 2))
+  const [sortBy, setSortBy] = useState<string>(initialQuery.sortBy ?? "count")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(initialQuery.sortOrder ?? "desc")
   const [clusters, setClusters] = useState(initial.clusters)
   const [providers, setProviders] = useState(initial.providers)
   const [total, setTotal] = useState(initial.total)
@@ -38,7 +42,11 @@ export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }
   const [loadedAll, setLoadedAll] = useState(initial.clusters.length >= initial.total)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [allProviders] = useState(initial.providers)
-  const [selectedProviders, setSelectedProviders] = useState<Set<string>>(new Set(initial.providers))
+  const [selectedProviders, setSelectedProviders] = useState<Set<string>>(
+    initialQuery.providers
+      ? new Set(initialQuery.providers.split(",").filter(Boolean))
+      : new Set(initial.providers)
+  )
 
   const allSelected = selectedProviders.size === allProviders.length
 
@@ -86,11 +94,13 @@ export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       void load(0, false)
+      const search = new URLSearchParams(params).toString()
+      router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false })
     }, 250)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [load])
+  }, [load, params, pathname, router])
 
   return (
     <div className="space-y-4">

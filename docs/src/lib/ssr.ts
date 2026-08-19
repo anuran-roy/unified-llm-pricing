@@ -7,6 +7,17 @@ async function apiBaseUrl(): Promise<string> {
   return `${proto}://${host}`
 }
 
+export function searchParamsToURLSearchParams(
+  sp: Record<string, string | string[] | undefined>
+): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (value === undefined) continue;
+    params.set(key, Array.isArray(value) ? value[0] : value);
+  }
+  return params;
+}
+
 export async function ssrGet<T>(
   path: string,
   params?: Record<string, string | number | undefined>

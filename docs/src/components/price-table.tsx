@@ -1,13 +1,15 @@
 "use client"
 
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { LeaderboardResponse } from "@/lib/api"
+import type { LeaderboardQuery } from "@/lib/leaderboard"
 import { fmtUsd } from "@/lib/pricing"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 const PAGE_SIZE = 100
 const SLIDER_MIN_B = 0
@@ -30,13 +32,15 @@ function fmtSizeB(n: number): string {
   return n >= 1 ? `${n.toFixed(1).replace(/\.0$/, "")}B` : `${n.toFixed(2)}B`
 }
 
-export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
-  const [models, setModels] = useState("")
-  const [provider, setProvider] = useState("all")
-  const [tier, setTier] = useState("all")
-  const [modality, setModality] = useState("all")
-  const [sortBy, setSortBy] = useState<string>(initial.rows.length > 0 ? "input" : "modelName")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
+export function PriceTable({ initial, initialQuery }: { initial: LeaderboardResponse; initialQuery: LeaderboardQuery }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const [models, setModels] = useState(initialQuery.models ?? "")
+  const [provider, setProvider] = useState(initialQuery.provider ?? "all")
+  const [tier, setTier] = useState(initialQuery.tier ?? "all")
+  const [modality, setModality] = useState(initialQuery.modality ?? "all")
+  const [sortBy, setSortBy] = useState<string>(initialQuery.sortBy ?? "input")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(initialQuery.sortOrder ?? "asc")
   const [rows, setRows] = useState(initial.rows)
   const [total, setTotal] = useState(initial.total)
   const [loading, setLoading] = useState(false)
@@ -47,7 +51,10 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
   const modalities = useMemo(() => initial.filters.modalities, [initial])
   const providers = useMemo(() => initial.filters.providers, [initial])
   const sizeBounds = useMemo(() => initial.filters.sizeRange, [initial])
-  const [sizeRange, setSizeRange] = useState<[number, number]>([SLIDER_MIN_B, SLIDER_MAX_B])
+  const [sizeRange, setSizeRange] = useState<[number, number]>([
+    initialQuery.minSize ?? SLIDER_MIN_B,
+    initialQuery.maxSize ?? SLIDER_MAX_B,
+  ])
 
   const sizeActive = sizeRange[0] > SLIDER_MIN_B || sizeRange[1] < SLIDER_MAX_B
 
@@ -88,11 +95,13 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       void load(0, false)
+      const search = new URLSearchParams(params).toString()
+      router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false })
     }, 250)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [load])
+  }, [load, params, pathname, router])
 
   const toggleSort = (key: string) => {
     if (sortBy === key) setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
