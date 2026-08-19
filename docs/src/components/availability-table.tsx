@@ -2,14 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { MultiSelectCombobox } from "@/components/multi-select-combobox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
 import { fmtUsd } from "@/lib/pricing"
 import type { AvailabilityEntry, AvailabilityResponse } from "@/lib/api"
 import type { AvailabilityQuery } from "@/lib/leaderboard"
@@ -49,18 +46,6 @@ export function AvailabilityTable({ initial, initialQuery }: { initial: Availabi
   )
 
   const allSelected = selectedProviders.size === allProviders.length
-
-  const toggleAll = () => {
-    if (allSelected) setSelectedProviders(new Set())
-    else setSelectedProviders(new Set(allProviders))
-  }
-
-  const toggleProvider = (p: string) => {
-    const next = new Set(selectedProviders)
-    if (next.has(p)) next.delete(p)
-    else next.add(p)
-    setSelectedProviders(next)
-  }
 
   const params = useMemo(() => {
     const p: Record<string, string> = { sortBy, sortOrder, minProviders }
@@ -110,51 +95,14 @@ export function AvailabilityTable({ initial, initialQuery }: { initial: Availabi
           value={models}
           onChange={(e) => setModels(e.target.value)}
         />
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="justify-between gap-2">
-              {allSelected ? "All providers" : `${selectedProviders.size} provider${selectedProviders.size === 1 ? "" : "s"}`}
-              <span className="text-muted-foreground">▾</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search providers…" />
-              <CommandList>
-                <CommandEmpty>No providers found</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem onSelect={toggleAll}>
-                    <span
-                      className={cn(
-                        "mr-2 flex size-4 items-center justify-center rounded-sm border",
-                        allSelected ? "border-primary bg-primary text-primary-foreground" : "opacity-50"
-                      )}
-                    >
-                      {allSelected && <Check className="size-3" />}
-                    </span>
-                    Select All
-                  </CommandItem>
-                  {allProviders.map((p) => {
-                    const checked = selectedProviders.has(p)
-                    return (
-                      <CommandItem key={p} onSelect={() => toggleProvider(p)}>
-                        <span
-                          className={cn(
-                            "mr-2 flex size-4 items-center justify-center rounded-sm border",
-                            checked ? "border-primary bg-primary text-primary-foreground" : "opacity-50"
-                          )}
-                        >
-                          {checked && <Check className="size-3" />}
-                        </span>
-                        {p}
-                      </CommandItem>
-                    )
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+        <MultiSelectCombobox
+          options={allProviders}
+          selected={[...selectedProviders]}
+          onChange={(next) => setSelectedProviders(new Set(next))}
+          allLabel="All providers"
+          countLabel="provider"
+          searchPlaceholder="Search providers…"
+        />
         <Select value={minProviders} onValueChange={setMinProviders}>
           <SelectTrigger size="sm">
             <SelectValue placeholder="Min providers" />

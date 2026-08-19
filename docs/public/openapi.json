@@ -45,13 +45,13 @@
           {
             "name": "tier",
             "in": "query",
-            "description": "Filter by pricing tier, e.g. `standard`, `batch`, `pro`.",
+            "description": "Comma-separated tiers, e.g. `standard,batch`. Matches rows from any of the tiers.",
             "schema": { "type": "string" }
           },
           {
             "name": "modality",
             "in": "query",
-            "description": "Filter by modality: `text`, `image`, `audio`, `video`, `embedding`, or `rerank`.",
+            "description": "Comma-separated modalities, e.g. `text,audio`. Matches rows containing any of the modalities. Valid values: `text`, `image`, `audio`, `video`, `embedding`, `rerank`.",
             "schema": { "type": "string" }
           },
           {
@@ -159,7 +159,7 @@
       "provider": {
         "name": "provider",
         "in": "query",
-        "description": "Provider id, e.g. `openrouter`, `openai`, `orcarouter`.",
+        "description": "Comma-separated provider ids, e.g. `openrouter,openai`. Matches rows from any of the providers.",
         "schema": { "type": "string" }
       },
       "sortOrder": {

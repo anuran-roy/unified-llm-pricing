@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MultiSelectCombobox } from "@/components/multi-select-combobox"
 import type { LeaderboardResponse } from "@/lib/api"
 import type { LeaderboardQuery } from "@/lib/leaderboard"
 import { fmtUsd } from "@/lib/pricing"
@@ -36,9 +36,9 @@ export function PriceTable({ initial, initialQuery }: { initial: LeaderboardResp
   const router = useRouter()
   const pathname = usePathname()
   const [models, setModels] = useState(initialQuery.models ?? "")
-  const [provider, setProvider] = useState(initialQuery.provider ?? "all")
-  const [tier, setTier] = useState(initialQuery.tier ?? "all")
-  const [modality, setModality] = useState(initialQuery.modality ?? "all")
+  const [provider, setProvider] = useState<string[]>(initialQuery.provider?.split(",").filter(Boolean) ?? [])
+  const [tier, setTier] = useState<string[]>(initialQuery.tier?.split(",").filter(Boolean) ?? [])
+  const [modality, setModality] = useState<string[]>(initialQuery.modality?.split(",").filter(Boolean) ?? [])
   const [sortBy, setSortBy] = useState<string>(initialQuery.sortBy ?? "input")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">(initialQuery.sortOrder ?? "asc")
   const [rows, setRows] = useState(initial.rows)
@@ -61,15 +61,15 @@ export function PriceTable({ initial, initialQuery }: { initial: LeaderboardResp
   const params = useMemo(() => {
     const p: Record<string, string> = { sortBy, sortOrder }
     if (models) p.models = models
-    if (provider !== "all") p.provider = provider
-    if (tier !== "all") p.tier = tier
-    if (modality !== "all") p.modality = modality
+    if (provider.length > 0 && provider.length < providers.length) p.provider = provider.join(",")
+    if (tier.length > 0 && tier.length < tiers.length) p.tier = tier.join(",")
+    if (modality.length > 0 && modality.length < modalities.length) p.modality = modality.join(",")
     if (sizeActive && sizeRange) {
       if (sizeRange[0] > SLIDER_MIN_B) p.minSize = String(sizeRange[0])
       if (sizeRange[1] < SLIDER_MAX_B) p.maxSize = String(sizeRange[1])
     }
     return p
-  }, [models, provider, tier, modality, sortBy, sortOrder, sizeActive, sizeRange])
+  }, [models, provider, tier, modality, providers, tiers, modalities, sortBy, sortOrder, sizeActive, sizeRange])
 
   const load = useCallback(
     async (offset: number, append: boolean) => {
@@ -120,45 +120,30 @@ export function PriceTable({ initial, initialQuery }: { initial: LeaderboardResp
           value={models}
           onChange={(e) => setModels(e.target.value)}
         />
-        <Select value={provider} onValueChange={setProvider}>
-          <SelectTrigger size="sm">
-            <SelectValue placeholder="Provider" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All providers</SelectItem>
-            {providers.map((p) => (
-              <SelectItem key={p} value={p}>
-                {p}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={tier} onValueChange={setTier}>
-          <SelectTrigger size="sm">
-            <SelectValue placeholder="Tier" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All tiers</SelectItem>
-            {tiers.map((t) => (
-              <SelectItem key={t} value={t}>
-                {t}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={modality} onValueChange={setModality}>
-          <SelectTrigger size="sm">
-            <SelectValue placeholder="Modality" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All modalities</SelectItem>
-            {modalities.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectCombobox
+          options={providers}
+          selected={provider}
+          onChange={setProvider}
+          allLabel="All providers"
+          countLabel="provider"
+          searchPlaceholder="Search providers…"
+        />
+        <MultiSelectCombobox
+          options={tiers}
+          selected={tier}
+          onChange={setTier}
+          allLabel="All tiers"
+          countLabel="tier"
+          searchPlaceholder="Search tiers…"
+        />
+        <MultiSelectCombobox
+          options={modalities}
+          selected={modality}
+          onChange={setModality}
+          allLabel="All modalities"
+          countLabel="modality"
+          searchPlaceholder="Search modalities…"
+        />
       </div>
 
       {sizeBounds && sizeRange && (

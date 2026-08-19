@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MultiSelectCombobox } from "@/components/multi-select-combobox"
 import { fmtUsd } from "@/lib/pricing"
 import type { TiersResponse } from "@/lib/api"
 import type { TiersQuery } from "@/lib/leaderboard"
@@ -17,7 +18,7 @@ export function TierComparison({ initial, initialQuery }: { initial: TiersRespon
   const router = useRouter()
   const pathname = usePathname()
   const [models, setModels] = useState(initialQuery.models ?? "")
-  const [provider, setProvider] = useState(initialQuery.provider ?? "all")
+  const [provider, setProvider] = useState<string[]>(initialQuery.provider?.split(",").filter(Boolean) ?? [])
   const [sortBy, setSortBy] = useState<string>(initialQuery.sortBy ?? "savings")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">(initialQuery.sortOrder ?? "desc")
   const [rows, setRows] = useState(initial.rows)
@@ -31,9 +32,9 @@ export function TierComparison({ initial, initialQuery }: { initial: TiersRespon
   const params = useMemo(() => {
     const p: Record<string, string> = { sortBy, sortOrder }
     if (models) p.models = models
-    if (provider !== "all") p.provider = provider
+    if (provider.length > 0 && provider.length < providers.length) p.provider = provider.join(",")
     return p
-  }, [models, provider, sortBy, sortOrder])
+  }, [models, provider, providers, sortBy, sortOrder])
 
   const load = useCallback(
     async (offset: number, append: boolean) => {
@@ -75,19 +76,14 @@ export function TierComparison({ initial, initialQuery }: { initial: TiersRespon
           value={models}
           onChange={(e) => setModels(e.target.value)}
         />
-        <Select value={provider} onValueChange={setProvider}>
-          <SelectTrigger size="sm">
-            <SelectValue placeholder="Provider" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All providers</SelectItem>
-            {providers.map((p) => (
-              <SelectItem key={p} value={p}>
-                {p}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectCombobox
+          options={providers}
+          selected={provider}
+          onChange={setProvider}
+          allLabel="All providers"
+          countLabel="provider"
+          searchPlaceholder="Search providers…"
+        />
         <Select value={sortBy} onValueChange={setSortBy}>
           <SelectTrigger size="sm">
             <SelectValue placeholder="Sort" />

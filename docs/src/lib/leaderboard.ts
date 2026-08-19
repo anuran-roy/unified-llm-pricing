@@ -7,8 +7,11 @@ export type SortKey = (typeof SORT_KEYS)[number]
 
 export interface LeaderboardQuery {
   models?: string
+  /** Comma-separated list; matches any of the providers. */
   provider?: string
+  /** Comma-separated list; matches any of the tiers. */
   tier?: string
+  /** Comma-separated list; matches rows containing any of the modalities. */
   modality?: string
   minSize?: number
   maxSize?: number
@@ -53,9 +56,20 @@ export function queryLeaderboard(
   const allRows = buildRows(data)
   let rows = allRows
 
-  if (q.provider) rows = rows.filter((r) => r.provider === q.provider)
-  if (q.tier) rows = rows.filter((r) => r.tier === q.tier)
-  if (q.modality) rows = rows.filter((r) => r.modality.split("+").includes(q.modality!))
+  if (q.provider) {
+    const wanted = q.provider.split(",").filter(Boolean)
+    if (wanted.length > 0) rows = rows.filter((r) => wanted.includes(r.provider))
+  }
+  if (q.tier) {
+    const wanted = q.tier.split(",").filter(Boolean)
+    if (wanted.length > 0) rows = rows.filter((r) => wanted.includes(r.tier))
+  }
+  if (q.modality) {
+    const wanted = q.modality.split(",").filter(Boolean)
+    if (wanted.length > 0) {
+      rows = rows.filter((r) => wanted.some((m) => r.modality.split("+").includes(m)))
+    }
+  }
   if (q.minSize !== undefined || q.maxSize !== undefined) {
     rows = rows.filter((r) => {
       if (r.sizeB === null) return true
@@ -178,6 +192,7 @@ export function queryAvailability(
 
 export interface TiersQuery {
   models?: string
+  /** Comma-separated list; matches any of the providers. */
   provider?: string
   sortBy?: "savings" | "input" | "output" | "modelName"
   sortOrder?: "asc" | "desc"
@@ -204,7 +219,10 @@ export function queryTiers(
   const allRows = buildTierComparison(data)
   let rows = allRows
 
-  if (q.provider) rows = rows.filter((r) => r.provider === q.provider)
+  if (q.provider) {
+    const wanted = q.provider.split(",").filter(Boolean)
+    if (wanted.length > 0) rows = rows.filter((r) => wanted.includes(r.provider))
+  }
   if (q.models) {
     const needle = q.models.toLowerCase()
     rows = rows.filter((r) => r.modelName.toLowerCase().includes(needle) || r.modelId.toLowerCase().includes(needle))
