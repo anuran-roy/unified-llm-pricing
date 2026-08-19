@@ -1,13 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { fmtUsd } from "@/lib/pricing"
 import type { LeaderboardResponse } from "@/lib/api"
+import { fmtUsd } from "@/lib/pricing"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 const PAGE_SIZE = 100
 const SLIDER_MIN_B = 0
@@ -155,8 +155,8 @@ export function PriceTable({ initial }: { initial: LeaderboardResponse }) {
       {sizeBounds && sizeRange && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3">
           <span className="w-24 text-sm font-medium">Size</span>
-          <Slider
-            className="max-w-72 flex-1"
+            <Slider
+            className="max-w-72 flex-1 [&_[data-slot=slider-track]]:bg-muted-foreground [&_[data-slot=slider-range]]:bg-primary"
             min={SLIDER_MIN_B}
             max={SLIDER_MAX_B}
             step={1}
