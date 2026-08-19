@@ -56,6 +56,9 @@ export interface AvailabilityEntry {
   modelId: string
   modelName: string
   input: number | null
+  output: number | null
+  cacheRead: number | null
+  cacheWrite: number | null
 }
 
 export interface TiersResponse {

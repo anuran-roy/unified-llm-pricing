@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Button } from "@/components/ui/button";
+import { NavTabs } from "@/components/nav-tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </nav>
             </div>
           </header>
+          <NavTabs />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
           <footer className="border-t">
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-sm text-muted-foreground">

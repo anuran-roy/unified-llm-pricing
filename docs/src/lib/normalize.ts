@@ -1,5 +1,5 @@
 import type { ModelPricing, PricingData } from "./types";
-import { modelInputPrice } from "./pricing";
+import { modelPriceBreakdown } from "./pricing";
 
 const KNOWN_ORGS = new Set([
   "openai",
@@ -116,6 +116,9 @@ export interface AvailabilityEntry {
   modelId: string;
   modelName: string;
   input: number | null;
+  output: number | null;
+  cacheRead: number | null;
+  cacheWrite: number | null;
 }
 
 export interface AvailabilityCluster {
@@ -171,7 +174,7 @@ export function buildAvailability(data: PricingData): AvailabilityCluster[] {
         provider: provider.provider,
         modelId: model.id,
         modelName: model.name,
-        input: modelInputPrice(model),
+        ...modelPriceBreakdown(model),
       });
       if (cluster.count === 1) cluster.displayName = model.name;
       else {

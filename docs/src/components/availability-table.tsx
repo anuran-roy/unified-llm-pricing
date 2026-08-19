@@ -1,14 +1,30 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 import { fmtUsd } from "@/lib/pricing"
-import type { AvailabilityResponse } from "@/lib/api"
+import type { AvailabilityEntry, AvailabilityResponse } from "@/lib/api"
 
 const PAGE_SIZE = 100
+
+function priceLabel(e: AvailabilityEntry): string {
+  if (!Number.isFinite(e.input) && !Number.isFinite(e.output)) return "—"
+  const segs: string[] = []
+  if (Number.isFinite(e.input)) segs.push(`${fmtUsd(e.input)}(input)`)
+  else segs.push("—(input)")
+  if (Number.isFinite(e.cacheRead)) segs.push(`${fmtUsd(e.cacheRead)}(cached input)`)
+  if (Number.isFinite(e.output)) segs.push(`${fmtUsd(e.output)}(output)`)
+  else segs.push("—(output)")
+  if (Number.isFinite(e.cacheWrite)) segs.push(`${fmtUsd(e.cacheWrite)}(cached output)`)
+  return segs.join("\n")
+}
 
 export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }) {
   const [models, setModels] = useState("")
@@ -21,12 +37,29 @@ export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }
   const [loading, setLoading] = useState(false)
   const [loadedAll, setLoadedAll] = useState(initial.clusters.length >= initial.total)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [allProviders] = useState(initial.providers)
+  const [selectedProviders, setSelectedProviders] = useState<Set<string>>(new Set(initial.providers))
+
+  const allSelected = selectedProviders.size === allProviders.length
+
+  const toggleAll = () => {
+    if (allSelected) setSelectedProviders(new Set())
+    else setSelectedProviders(new Set(allProviders))
+  }
+
+  const toggleProvider = (p: string) => {
+    const next = new Set(selectedProviders)
+    if (next.has(p)) next.delete(p)
+    else next.add(p)
+    setSelectedProviders(next)
+  }
 
   const params = useMemo(() => {
     const p: Record<string, string> = { sortBy, sortOrder, minProviders }
     if (models) p.models = models
+    if (!allSelected) p.providers = [...selectedProviders].sort().join(",")
     return p
-  }, [models, minProviders, sortBy, sortOrder])
+  }, [models, minProviders, sortBy, sortOrder, allSelected, selectedProviders])
 
   const load = useCallback(
     async (offset: number, append: boolean) => {
@@ -67,6 +100,51 @@ export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }
           value={models}
           onChange={(e) => setModels(e.target.value)}
         />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="justify-between gap-2">
+              {allSelected ? "All providers" : `${selectedProviders.size} provider${selectedProviders.size === 1 ? "" : "s"}`}
+              <span className="text-muted-foreground">▾</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search providers…" />
+              <CommandList>
+                <CommandEmpty>No providers found</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem onSelect={toggleAll}>
+                    <span
+                      className={cn(
+                        "mr-2 flex size-4 items-center justify-center rounded-sm border",
+                        allSelected ? "border-primary bg-primary text-primary-foreground" : "opacity-50"
+                      )}
+                    >
+                      {allSelected && <Check className="size-3" />}
+                    </span>
+                    Select All
+                  </CommandItem>
+                  {allProviders.map((p) => {
+                    const checked = selectedProviders.has(p)
+                    return (
+                      <CommandItem key={p} onSelect={() => toggleProvider(p)}>
+                        <span
+                          className={cn(
+                            "mr-2 flex size-4 items-center justify-center rounded-sm border",
+                            checked ? "border-primary bg-primary text-primary-foreground" : "opacity-50"
+                          )}
+                        >
+                          {checked && <Check className="size-3" />}
+                        </span>
+                        {p}
+                      </CommandItem>
+                    )
+                  })}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
         <Select value={minProviders} onValueChange={setMinProviders}>
           <SelectTrigger size="sm">
             <SelectValue placeholder="Min providers" />
@@ -101,6 +179,10 @@ export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }
         {loading && clusters.length === 0
           ? "Loading…"
           : `Showing ${clusters.length.toLocaleString()} of ${total.toLocaleString()} models on ${minProviders}+ providers`}
+      </p>
+
+      <p className="text-xs text-muted-foreground">
+        Per-provider prices per 1M tokens: $A(input)/$B(cached input)/$C(output)/$D(cached output). Cached prices are omitted when unavailable.
       </p>
 
       <div className="overflow-x-auto">
@@ -143,10 +225,16 @@ export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }
                       {providers.map((p) => {
                         const entry = cluster.entries.find((e) => e.provider === p)
                         return (
-                          <TableCell key={p} className="whitespace-nowrap text-right tabular-nums">
+                          <TableCell key={p} className="whitespace-nowrap text-right">
                             {entry ? (
-                              <span className={entry.input === min ? "font-medium" : undefined}>
-                                {fmtUsd(entry.input)}
+                              <span
+                                className={
+                                  entry.input === min
+                                    ? "font-medium whitespace-pre-line tabular-nums"
+                                    : "whitespace-pre-line text-xs tabular-nums text-muted-foreground"
+                                }
+                              >
+                                {priceLabel(entry)}
                               </span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
@@ -167,6 +255,9 @@ export function AvailabilityTable({ initial }: { initial: AvailabilityResponse }
             {loading ? "Loading…" : "Load more"}
           </Button>
         </div>
+      )}
+      {!loading && clusters.length === 0 && (
+        <p className="py-8 text-center text-sm text-muted-foreground">No models match the selected providers.</p>
       )}
     </div>
   )

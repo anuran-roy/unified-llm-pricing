@@ -305,3 +305,26 @@ export function modelInputPrice(model: ModelPricing): number | null {
   const p = pickTokenPrice(tier.input);
   return p ? usdPerMillion(p) : null;
 }
+
+export interface ModelPriceBreakdown {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+export function modelPriceBreakdown(model: ModelPricing): ModelPriceBreakdown {
+  const tier = getStandardTier(model);
+  const price = (arr: Price[] | undefined): number => {
+    if (!tier) return Number.NaN;
+    const p = pickTokenPrice(arr ?? []);
+    if (!p) return Number.NaN;
+    return usdPerMillion(p) ?? Number.NaN;
+  };
+  return {
+    input: price(tier?.input),
+    output: price(tier?.output),
+    cacheRead: price(tier?.cacheRead),
+    cacheWrite: price(tier?.cacheWrite),
+  };
+}

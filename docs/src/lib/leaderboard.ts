@@ -108,7 +108,7 @@ export function queryLeaderboard(
 
 export interface AvailabilityQuery {
   models?: string
-  provider?: string
+  providers?: string
   minProviders?: number
   sortBy?: "count" | "name" | "input"
   sortOrder?: "asc" | "desc"
@@ -120,7 +120,7 @@ export function parseAvailabilityQuery(sp: URLSearchParams): AvailabilityQuery {
   const sortBy = sp.get("sortBy")
   return {
     models: sp.get("models") ?? undefined,
-    provider: sp.get("provider") ?? undefined,
+    providers: sp.get("providers") ?? undefined,
     minProviders: Math.max(parseLimit(sp.get("minProviders"), 2, 20), 1),
     sortBy: sortBy === "name" || sortBy === "input" ? sortBy : "count",
     sortOrder: sp.get("sortOrder") === "asc" ? "asc" : "desc",
@@ -134,8 +134,15 @@ export function queryAvailability(
   q: AvailabilityQuery
 ): { clusters: import("./api").AvailabilityCluster[]; providers: string[]; total: number } {
   let clusters = buildAvailability(data)
+  const selectedProviders = q.providers?.split(",").filter(Boolean)
 
-  if (q.provider) clusters = clusters.filter((c) => c.entries.some((e) => e.provider === q.provider))
+  if (selectedProviders && selectedProviders.length > 0) {
+    const set = new Set(selectedProviders)
+    clusters = clusters.filter((c) => c.entries.some((e) => set.has(e.provider)))
+  }
+  if (selectedProviders && selectedProviders.length === 0) {
+    clusters = []
+  }
   if (q.models) {
     const needle = q.models.toLowerCase()
     clusters = clusters.filter(
@@ -157,7 +164,11 @@ export function queryAvailability(
 
   const providerSet = new Set<string>()
   for (const c of clusters) for (const e of c.entries) providerSet.add(e.provider)
-  const providers = [...providerSet].sort()
+  let providers = [...providerSet].sort()
+  if (selectedProviders && selectedProviders.length > 0) {
+    const set = new Set(selectedProviders)
+    providers = providers.filter((p) => set.has(p))
+  }
 
   const total = clusters.length
   const offset = q.offset ?? 0
