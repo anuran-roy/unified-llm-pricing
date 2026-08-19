@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -35,14 +36,48 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   Normalized pricing across 9 providers · updated daily
                 </p>
               </div>
-              <nav className="text-sm text-muted-foreground">
+              <nav className="flex items-center gap-3 text-sm text-muted-foreground">
                 <a href="/api/leaderboard" className="hover:text-foreground">
                   API: /api/leaderboard
                 </a>
+                <Button asChild size="sm">
+                  <a
+                    href="https://github.com/anuran-roy/unified-llm-pricing"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Star it on GitHub
+                  </a>
+                </Button>
               </nav>
             </div>
           </header>
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+          <footer className="border-t">
+            <div className="mx-auto w-full max-w-6xl px-4 py-4 text-sm text-muted-foreground">
+              <p>
+                For the full raw data, please go to{" "}
+                <a
+                  href="https://raw.githubusercontent.com/anuran-roy/unified-llm-pricing/refs/heads/main/data/pricing.json"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  data/pricing.json
+                </a>
+                . Star it on GitHub:{" "}
+                <a
+                  href="https://github.com/anuran-roy/unified-llm-pricing"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  anuran-roy/unified-llm-pricing
+                </a>
+                .
+              </p>
+            </div>
+          </footer>
         </TooltipProvider>
       </body>
     </html>
