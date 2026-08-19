@@ -11,7 +11,9 @@ export function inferModality(model: ModelPricing): TokenModality | undefined {
   if (mode === "rerank") return "rerank";
   if (mode === "audio_transcription" || mode === "audio_speech" || mode === "text_to_speech") return "audio";
 
-  const arch = model.metadata?.architecture as { modality?: string } | undefined;
+  const arch = model.metadata?.architecture as
+    | { modality?: string; output_modalities?: string[] | null }
+    | undefined;
   const output = arch?.modality?.split("->")[1] ?? "";
   const kinds = output
     .split("+")
@@ -24,12 +26,19 @@ export function inferModality(model: ModelPricing): TokenModality | undefined {
     if (kinds[0] === "video") return "video";
     if (kinds[0] === "audio" || kinds[0] === "speech" || kinds[0] === "transcription") return "audio";
   }
+  if (output === "" && arch?.output_modalities?.length === 1) {
+    const out = arch.output_modalities[0];
+    if (out === "embeddings") return "embedding";
+    if (out === "image") return "image";
+    if (out === "video") return "video";
+    if (out === "audio" || out === "speech" || out === "transcription") return "audio";
+  }
 
   const idName = `${model.id} ${model.name}`;
   if (/embed/i.test(idName)) return "embedding";
   if (/rerank/i.test(idName)) return "rerank";
   if (/imagen|\bimage\b/i.test(idName)) return "image";
-  if (/\bsora\b|\bveo\b|video/i.test(idName)) return "video";
+  if (/\bsora\b|\bveo\b|kling|video/i.test(idName)) return "video";
   if (/\blyria\b|tts|transcrib|whisper|audio/i.test(idName)) return "audio";
   return undefined;
 }
@@ -110,7 +119,6 @@ export function buildRows(data: PricingData): ModelRow[] {
         const output = pickTokenPrice(tier.output);
         const cacheRead = pickTokenPrice(tier.cacheRead);
         const cacheWrite = pickTokenPrice(tier.cacheWrite);
-        if (!input && !output && !cacheRead && !cacheWrite) continue;
         rows.push({
           provider: provider.provider,
           modelId: model.id,
@@ -118,10 +126,10 @@ export function buildRows(data: PricingData): ModelRow[] {
           tier: tier.name,
           modality: tierModalities(model, tier),
           sizeB: modelSizeB(model.id),
-          input: input ? usdPerMillion(input) : null,
-          output: output ? usdPerMillion(output) : null,
-          cacheRead: cacheRead ? usdPerMillion(cacheRead) : null,
-          cacheWrite: cacheWrite ? usdPerMillion(cacheWrite) : null,
+          input: input ? usdPerMillion(input) : Number.NaN,
+          output: output ? usdPerMillion(output) : Number.NaN,
+          cacheRead: cacheRead ? usdPerMillion(cacheRead) : Number.NaN,
+          cacheWrite: cacheWrite ? usdPerMillion(cacheWrite) : Number.NaN,
         });
       }
     }

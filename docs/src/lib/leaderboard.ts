@@ -73,9 +73,21 @@ export function queryLeaderboard(
 
   const key = q.sortBy ?? "input"
   const dir = q.sortOrder === "desc" ? -1 : 1
+  const value = (r: ModelRow, k: string): string | number => {
+    const v = r[k as keyof ModelRow] as string | number | null
+    if (typeof v === "number" && !Number.isFinite(v)) return Number.POSITIVE_INFINITY
+    if (v === null || v === undefined) {
+      if (k === "modelName") return r.modelName
+      if (k === "provider") return r.provider
+      if (k === "tier") return r.tier
+      if (k === "modality") return r.modality
+      return Number.POSITIVE_INFINITY
+    }
+    return v
+  }
   rows = [...rows].sort((a, b) => {
-    const av = a[key] ?? (key === "modelName" ? a.modelName : key === "provider" ? a.provider : key === "tier" ? a.tier : key === "modality" ? a.modality : Number.POSITIVE_INFINITY)
-    const bv = b[key] ?? (key === "modelName" ? b.modelName : key === "provider" ? b.provider : key === "tier" ? b.tier : key === "modality" ? b.modality : Number.POSITIVE_INFINITY)
+    const av = value(a, key)
+    const bv = value(b, key)
     if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir
     return String(av).localeCompare(String(bv)) * dir
   })

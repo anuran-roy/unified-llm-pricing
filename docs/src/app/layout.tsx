@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Unified LLM Pricing — Live Dashboard",
   description:
-    "Live dashboard and API for normalized LLM pricing across OpenAI, Anthropic, Google, Groq, OpenRouter, LiteLLM, Doubleword, Baseten, and Wafer.",
+    "Live dashboard and API for normalized LLM pricing across OpenAI, Anthropic, Google, Groq, OpenRouter, LiteLLM, Doubleword, Baseten, Wafer, and OrcaRouter.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <div>
                 <h1 className="text-lg font-semibold">Unified LLM Pricing</h1>
                 <p className="text-sm text-muted-foreground">
-                  Normalized pricing across 9 providers · updated daily
+                  Normalized pricing across 10 providers · updated daily
                 </p>
               </div>
               <nav className="flex items-center gap-3 text-sm text-muted-foreground">

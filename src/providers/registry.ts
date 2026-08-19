@@ -6,6 +6,7 @@ import { getGroqPricing } from "./groq";
 import { getLiteLLMPricing } from "./litellm";
 import { getOpenAIPricing } from "./openai";
 import { getOpenRouterPricing } from "./openrouter";
+import { getOrcaRouterPricing } from "./orcarouter";
 import { getWaferPricing } from "./wafer";
 
 export const PROVIDER_REGISTRY = {
@@ -17,5 +18,6 @@ export const PROVIDER_REGISTRY = {
   openrouter: getOpenRouterPricing,
   litellm: getLiteLLMPricing,
   baseten: getBasetenPricing,
-  wafer: getWaferPricing
+  wafer: getWaferPricing,
+  orcarouter: getOrcaRouterPricing
 }

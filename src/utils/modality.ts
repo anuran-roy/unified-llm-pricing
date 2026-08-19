@@ -10,7 +10,11 @@ export interface ModalityModel {
   name?: string;
   type?: string;
   mode?: string;
-  architecture?: { modality?: string };
+  architecture?: {
+    modality?: string;
+    input_modalities?: string[] | null;
+    output_modalities?: string[] | null;
+  };
 }
 
 /**
@@ -106,7 +110,32 @@ export function inferModelModality(
   }
 
   /*
-   * 3. Keyword inference on the model ID/name.
+   * 3. Architecture output modality
+   *    (OrcaRouter: output_modalities: ["video"]).
+   */
+  const outputs =
+    arch.length === 0
+      ? model.architecture
+          ?.output_modalities
+      : undefined;
+
+  if (outputs?.length === 1) {
+    switch (outputs[0]) {
+      case "embeddings":
+        return "embedding";
+      case "image":
+        return "image";
+      case "video":
+        return "video";
+      case "audio":
+      case "speech":
+      case "transcription":
+        return "audio";
+    }
+  }
+
+  /*
+   * 4. Keyword inference on the model ID/name.
    */
   if (/embed/i.test(idName)) {
     return "embedding";
@@ -123,7 +152,7 @@ export function inferModelModality(
   }
 
   if (
-    /\bsora\b|\bveo\b|video/i.test(
+    /\bsora\b|\bveo\b|kling|video/i.test(
       idName,
     )
   ) {
