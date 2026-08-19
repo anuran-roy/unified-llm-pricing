@@ -17,6 +17,7 @@ export default async function Page({
     sortOrder: query.sortOrder,
     ...(query.models ? { models: query.models } : {}),
     ...(query.provider ? { provider: query.provider } : {}),
+    ...(query.tier ? { tier: query.tier } : {}),
   })
 
   return <TierComparison initial={tiers} initialQuery={query} />

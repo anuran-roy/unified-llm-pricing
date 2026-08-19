@@ -19,6 +19,7 @@ export function TierComparison({ initial, initialQuery }: { initial: TiersRespon
   const pathname = usePathname()
   const [models, setModels] = useState(initialQuery.models ?? "")
   const [provider, setProvider] = useState<string[]>(initialQuery.provider?.split(",").filter(Boolean) ?? [])
+  const [tier, setTier] = useState<string[]>(initialQuery.tier?.split(",").filter(Boolean) ?? [])
   const [sortBy, setSortBy] = useState<string>(initialQuery.sortBy ?? "savings")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">(initialQuery.sortOrder ?? "desc")
   const [rows, setRows] = useState(initial.rows)
@@ -27,14 +28,16 @@ export function TierComparison({ initial, initialQuery }: { initial: TiersRespon
   const [loadedAll, setLoadedAll] = useState(initial.rows.length >= initial.total)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const providers = useMemo(() => initial.filters.providers, [initial])
+  const [providers] = useState(initial.filters.providers)
+  const [tiers] = useState(initial.filters.tiers)
 
   const params = useMemo(() => {
     const p: Record<string, string> = { sortBy, sortOrder }
     if (models) p.models = models
     if (provider.length > 0 && provider.length < providers.length) p.provider = provider.join(",")
+    if (tier.length > 0 && tier.length < tiers.length) p.tier = tier.join(",")
     return p
-  }, [models, provider, providers, sortBy, sortOrder])
+  }, [models, provider, providers, tier, tiers, sortBy, sortOrder])
 
   const load = useCallback(
     async (offset: number, append: boolean) => {
@@ -61,7 +64,10 @@ export function TierComparison({ initial, initialQuery }: { initial: TiersRespon
     debounceRef.current = setTimeout(() => {
       void load(0, false)
       const search = new URLSearchParams(params).toString()
-      router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false })
+      const next = search ? `${pathname}?${search}` : pathname
+      if (next !== window.location.pathname + window.location.search) {
+        router.replace(next, { scroll: false })
+      }
     }, 250)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -83,6 +89,14 @@ export function TierComparison({ initial, initialQuery }: { initial: TiersRespon
           allLabel="All providers"
           countLabel="provider"
           searchPlaceholder="Search providers…"
+        />
+        <MultiSelectCombobox
+          options={tiers}
+          selected={tier}
+          onChange={setTier}
+          allLabel="All tiers"
+          countLabel="tier"
+          searchPlaceholder="Search tiers…"
         />
         <Select value={sortBy} onValueChange={setSortBy}>
           <SelectTrigger size="sm">

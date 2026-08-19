@@ -194,6 +194,8 @@ export interface TiersQuery {
   models?: string
   /** Comma-separated list; matches any of the providers. */
   provider?: string
+  /** Comma-separated list; matches any of the tiers. */
+  tier?: string
   sortBy?: "savings" | "input" | "output" | "modelName"
   sortOrder?: "asc" | "desc"
   limit?: number
@@ -205,6 +207,7 @@ export function parseTiersQuery(sp: URLSearchParams): TiersQuery {
   return {
     models: sp.get("models") ?? undefined,
     provider: sp.get("provider") ?? undefined,
+    tier: sp.get("tier") ?? undefined,
     sortBy: sortBy === "input" || sortBy === "output" || sortBy === "modelName" ? sortBy : "savings",
     sortOrder: sp.get("sortOrder") === "asc" ? "asc" : "desc",
     limit: parseLimit(sp.get("limit"), 100, 1000),
@@ -222,6 +225,10 @@ export function queryTiers(
   if (q.provider) {
     const wanted = q.provider.split(",").filter(Boolean)
     if (wanted.length > 0) rows = rows.filter((r) => wanted.includes(r.provider))
+  }
+  if (q.tier) {
+    const wanted = q.tier.split(",").filter(Boolean)
+    if (wanted.length > 0) rows = rows.filter((r) => wanted.includes(r.tier))
   }
   if (q.models) {
     const needle = q.models.toLowerCase()

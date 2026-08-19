@@ -80,7 +80,10 @@ export function AvailabilityTable({ initial, initialQuery }: { initial: Availabi
     debounceRef.current = setTimeout(() => {
       void load(0, false)
       const search = new URLSearchParams(params).toString()
-      router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false })
+      const next = search ? `${pathname}?${search}` : pathname
+      if (next !== window.location.pathname + window.location.search) {
+        router.replace(next, { scroll: false })
+      }
     }, 250)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)

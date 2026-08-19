@@ -47,10 +47,10 @@ export function PriceTable({ initial, initialQuery }: { initial: LeaderboardResp
   const [loadedAll, setLoadedAll] = useState(initial.rows.length >= initial.total)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const tiers = useMemo(() => initial.filters.tiers, [initial])
-  const modalities = useMemo(() => initial.filters.modalities, [initial])
-  const providers = useMemo(() => initial.filters.providers, [initial])
-  const sizeBounds = useMemo(() => initial.filters.sizeRange, [initial])
+  const [tiers] = useState(initial.filters.tiers)
+  const [modalities] = useState(initial.filters.modalities)
+  const [providers] = useState(initial.filters.providers)
+  const [sizeBounds] = useState(initial.filters.sizeRange)
   const [sizeRange, setSizeRange] = useState<[number, number]>([
     initialQuery.minSize ?? SLIDER_MIN_B,
     initialQuery.maxSize ?? SLIDER_MAX_B,
@@ -96,7 +96,10 @@ export function PriceTable({ initial, initialQuery }: { initial: LeaderboardResp
     debounceRef.current = setTimeout(() => {
       void load(0, false)
       const search = new URLSearchParams(params).toString()
-      router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false })
+      const next = search ? `${pathname}?${search}` : pathname
+      if (next !== window.location.pathname + window.location.search) {
+        router.replace(next, { scroll: false })
+      }
     }, 250)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)

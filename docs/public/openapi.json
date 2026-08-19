@@ -129,6 +129,12 @@
           { "$ref": "#/components/parameters/models" },
           { "$ref": "#/components/parameters/provider" },
           {
+            "name": "tier",
+            "in": "query",
+            "description": "Comma-separated tiers, e.g. `batch,flex`. Matches rows from any of the tiers.",
+            "schema": { "type": "string" }
+          },
+          {
             "name": "sortBy",
             "in": "query",
             "description": "Sort key.",
