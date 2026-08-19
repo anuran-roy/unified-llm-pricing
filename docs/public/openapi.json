@@ -168,6 +168,16 @@
         "description": "Comma-separated provider ids, e.g. `openrouter,openai`. Matches rows from any of the providers.",
         "schema": { "type": "string" }
       },
+      "sortBy": {
+        "name": "sortBy",
+        "in": "query",
+        "description": "Sort key.",
+        "schema": {
+          "type": "string",
+          "enum": ["input", "output", "cacheRead", "cacheWrite", "modelName", "provider", "tier", "modality", "sizeB"],
+          "default": "input"
+        }
+      },
       "sortOrder": {
         "name": "sortOrder",
         "in": "query",
