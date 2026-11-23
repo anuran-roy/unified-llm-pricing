@@ -6,16 +6,17 @@ import type {
 } from "../types";
 
 const CATALOG_URL =
-  "https://api.litellm.ai/model_catalog";
+  "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 
 const PROVIDER = "litellm";
 
-const PAGE_SIZE = 500;
+const FETCH_TIMEOUT_MS = 30_000;
+const FETCH_RETRIES = 3;
 
 interface CatalogEntry {
   id: string;
 
-  provider?: string;
+  litellm_provider?: string;
   mode?: string;
 
   max_input_tokens?: number | null;
@@ -98,14 +99,6 @@ interface CatalogEntry {
   supports_web_search?: boolean | null;
 
   [key: string]: unknown;
-}
-
-interface CatalogResponse {
-  data: CatalogEntry[];
-  total_count: number;
-  has_more: boolean;
-  page: number;
-  page_size: number;
 }
 
 type PriceCategory =
@@ -325,7 +318,7 @@ function normalizeEntry(
     metadata: {
       source: "litellm",
       mode: entry.mode,
-      servingProvider: entry.provider,
+      servingProvider: entry.litellm_provider,
       maxInputTokens: entry.max_input_tokens,
       maxOutputTokens: entry.max_output_tokens,
       maxTokens: entry.max_tokens,
@@ -346,44 +339,73 @@ function normalizeEntry(
   };
 }
 
-/**
- * Fetch the full catalog, following pagination.
- */
-async function fetchCatalog(): Promise<
-  CatalogEntry[]
-> {
-  const entries: CatalogEntry[] = [];
+async function fetchWithRetry(url: string): Promise<Response> {
+  let lastError: unknown;
 
-  let page = 1;
+  for (let attempt = 1; attempt <= FETCH_RETRIES; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
 
-  while (true) {
-    const url =
-      `${CATALOG_URL}?page=${page}` +
-      `&page_size=${PAGE_SIZE}`;
+      if (response.ok) {
+        return response;
+      }
 
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `LiteLLM catalog request failed: ` +
+      lastError = new Error(
+        `LiteLLM cost map request failed: ` +
         `${response.status} ${response.statusText}`,
       );
+
+      // Don't retry client errors other than rate limiting.
+      if (response.status < 500 && response.status !== 429) {
+        break;
+      }
+    } catch (err) {
+      lastError = err;
     }
 
-    const result =
-      (await response.json()) as CatalogResponse;
+    if (attempt < FETCH_RETRIES) {
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
+    }
+  }
 
-    entries.push(...(result.data ?? []));
+  throw lastError;
+}
 
-    if (!result.has_more) {
-      break;
+/**
+ * Fetch LiteLLM's model cost map. It is a single JSON
+ * object keyed by model name, not a paginated API.
+ */
+async function fetchCatalog(): Promise<CatalogEntry[]> {
+  const response = await fetchWithRetry(CATALOG_URL);
+
+  const raw = (await response.json()) as Record<
+    string,
+    Omit<CatalogEntry, "id">
+  >;
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("LiteLLM cost map has unexpected shape");
+  }
+
+  const entries: CatalogEntry[] = [];
+
+  for (const [id, value] of Object.entries(raw)) {
+    if (id === "sample_spec") {
+      continue;
     }
 
-    page++;
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+
+    entries.push({ ...value, id });
+  }
+
+  if (entries.length === 0) {
+    throw new Error("LiteLLM cost map was empty");
   }
 
   return entries;
