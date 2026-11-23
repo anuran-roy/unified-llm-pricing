@@ -382,4 +382,81 @@ function extractMarkdownRecords(
       }
 
       const cellNumber = (index: number) =>
-        index
+        index < 0
+          ? null
+          : parseNumber(clean(nodeText(cells[index])));
+
+      const link =
+        firstLink(cells[modelIndex]);
+
+      const slug =
+        link
+          ?.split(/[?#]/)[0]
+          .split("/")
+          .filter(Boolean)
+          .pop() ??
+        slugify(name);
+
+      if (seen.has(slug)) {
+        continue;
+      }
+
+      seen.add(slug);
+
+      records.push({
+        name,
+        slug,
+        tryModelApiLink: link,
+        perfCost: cellNumber(inputIndex),
+        perfCostCacheInput: cellNumber(cacheIndex),
+        perfCostOutput: cellNumber(outputIndex),
+      });
+    }
+  }
+
+  return records;
+}
+
+export async function getBasetenPricing():
+  Promise<ProviderPricing> {
+  const content =
+    await fetchMarkdown(URL);
+
+  let records =
+    extractModelRecords(
+      extractFlightPayload(content),
+    );
+
+  if (records.length === 0) {
+    records =
+      extractMarkdownRecords(content);
+  }
+
+  const models: ModelPricing[] = [];
+
+  for (const record of records) {
+    const model =
+      normalizeModel(record);
+
+    if (model) {
+      models.push(model);
+    }
+  }
+
+  if (models.length === 0) {
+    throw new Error(
+      "Baseten parser extracted zero Model API models. " +
+      "The pricing page structure may have changed.",
+    );
+  }
+
+  return {
+    provider: PROVIDER,
+    source: {
+      url: URL,
+      fetchedAt:
+        new Date().toISOString(),
+    },
+    models,
+  };
+}
