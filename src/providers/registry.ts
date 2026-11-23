@@ -17,7 +17,7 @@ export const PROVIDER_REGISTRY = {
   doubleword: getDoublewordPricing,
   openrouter: getOpenRouterPricing,
   litellm: getLiteLLMPricing,
-  baseten: getBasetenPricing,
+  // baseten: getBasetenPricing,
   wafer: getWaferPricing,
   orcarouter: getOrcaRouterPricing
 }
