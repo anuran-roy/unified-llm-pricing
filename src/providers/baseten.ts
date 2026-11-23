@@ -6,7 +6,11 @@ import type {
 } from "../types";
 
 import {
+  clean,
   fetchMarkdown,
+  nodeText,
+  parseMarkdown,
+  parseNumber,
 } from "../utils/markdown";
 
 const URL =
@@ -264,42 +268,118 @@ function normalizeModel(
   };
 }
 
-export async function getBasetenPricing():
-  Promise<ProviderPricing> {
-  const html =
-    await fetchMarkdown(URL);
+function slugify(
+  value: string,
+): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
-  const payload =
-    extractFlightPayload(html);
+/**
+ * Find the first link URL inside an mdast node.
+ */
+function firstLink(
+  node: any,
+): string | undefined {
+  if (!node) {
+    return undefined;
+  }
 
-  const records =
-    extractModelRecords(payload);
+  if (
+    node.type === "link" &&
+    typeof node.url === "string"
+  ) {
+    return node.url;
+  }
 
-  const models: ModelPricing[] = [];
+  for (const child of node.children ?? []) {
+    const url = firstLink(child);
 
-  for (const record of records) {
-    const model =
-      normalizeModel(record);
-
-    if (model) {
-      models.push(model);
+    if (url) {
+      return url;
     }
   }
 
-  if (models.length === 0) {
-    throw new Error(
-      "Baseten parser extracted zero Model API models. " +
-      "The pricing page structure may have changed.",
-    );
-  }
-
-  return {
-    provider: PROVIDER,
-    source: {
-      url: URL,
-      fetchedAt:
-        new Date().toISOString(),
-    },
-    models,
-  };
+  return undefined;
 }
+
+/**
+ * Baseten serves a markdown version of the pricing
+ * page when the request prefers text/markdown, which
+ * fetchMarkdown does. The Model APIs prices live in a
+ * table headed "Model | Input | Cache input | Output".
+ *
+ * Convert those rows into BasetenModel records so the
+ * normal normalizeModel path handles them.
+ */
+function extractMarkdownRecords(
+  markdown: string,
+): BasetenModel[] {
+  const tree =
+    parseMarkdown(markdown);
+
+  const records: BasetenModel[] = [];
+  const seen = new Set<string>();
+
+  const tables: any[] = [];
+
+  (function walk(node: any) {
+    if (node.type === "table") {
+      tables.push(node);
+      return;
+    }
+
+    for (const child of node.children ?? []) {
+      walk(child);
+    }
+  })(tree);
+
+  for (const table of tables) {
+    const rows: any[] =
+      table.children ?? [];
+
+    if (rows.length < 2) {
+      continue;
+    }
+
+    const headers: string[] =
+      rows[0].children.map((cell: any) =>
+        clean(nodeText(cell)).toLowerCase(),
+      );
+
+    const modelIndex =
+      headers.findIndex((h) => h.includes("model"));
+
+    const cacheIndex =
+      headers.findIndex((h) => h.includes("cache"));
+
+    const inputIndex =
+      headers.findIndex((h, i) =>
+        i !== cacheIndex && h.includes("input"),
+      );
+
+    const outputIndex =
+      headers.findIndex((h) => h.includes("output"));
+
+    if (
+      modelIndex < 0 ||
+      inputIndex < 0
+    ) {
+      continue;
+    }
+
+    for (const row of rows.slice(1)) {
+      const cells: any[] =
+        row.children ?? [];
+
+      const name =
+        clean(nodeText(cells[modelIndex]));
+
+      if (!name) {
+        continue;
+      }
+
+      const cellNumber = (index: number) =>
+        index
